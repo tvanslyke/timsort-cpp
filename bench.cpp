@@ -25,11 +25,9 @@ static const std::vector<naics_t>& census_data()
 	static const std::vector<naics_t> data(
 		[]() // immediately-invoked lambda
 		{
-			std::cerr << "LOADING CENSUS DATA" << std::endl;
 			std::vector<naics_t> tmp;
 			tmp.reserve(74998);
 			us_state_naics_detailedsizes_2015(std::back_inserter(tmp));
-			std::cerr << "DONE" << std::endl;
 			return tmp;
 		}()
 	);
@@ -216,9 +214,9 @@ static void BM_sort_census_naics_data(benchmark::State& state)
 
 BENCHMARK(BM_sort_random_uniform_ints)->RangeMultiplier(8)->Range(8, 262144);
 BENCHMARK(BM_sort_small_random_uniform_ints)->RangeMultiplier(8)->Range(8, 262144);
-BENCHMARK_TEMPLATE(BM_sort_random_strings, 4, 32)->RangeMultiplier(8)->Range(8, 262144);
-BENCHMARK_TEMPLATE(BM_sort_random_strings, 4, 128)->RangeMultiplier(8)->Range(8, 262144);
-BENCHMARK_TEMPLATE(BM_sort_random_strings, 64, 128)->RangeMultiplier(8)->Range(8, 262144);
+BENCHMARK_TEMPLATE(BM_sort_random_strings,  0,  8 /* ALL SSO */)->RangeMultiplier(8)->Range(8, 262144);
+BENCHMARK_TEMPLATE(BM_sort_random_strings,  0, 64 /* SOME SSO */)->RangeMultiplier(8)->Range(8, 262144);
+BENCHMARK_TEMPLATE(BM_sort_random_strings, 32, 64 /* NO SSO */ )->RangeMultiplier(8)->Range(8, 262144);
 BENCHMARK(BM_sort_mnist_train_labels);
 BENCHMARK_TEMPLATE(BM_sort_census_naics_data, STATE);
 BENCHMARK_TEMPLATE(BM_sort_census_naics_data, NAICS);

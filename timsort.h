@@ -13,6 +13,8 @@
 #include <limits>
 #include <numeric>
 #include <mutex>
+#include "utils.h"
+
 
 
 /* Stolen from cpython source... */
@@ -34,24 +36,15 @@ static constexpr std::size_t div_by_log2phi(std::size_t num)
 	return static_cast<std::size_t>(num / log2phi) + 1;
 }
 
+
+
 // TODO: test perf for partial_insertion_sort() vs partial_insertion_sort_ex()
 template <class It, class Comp>
-static It partial_insertion_sort(It begin, It mid, It end, Comp comp)
+static It old_partial_insertion_sort(It begin, It mid, It end, Comp comp)
 {
 	while(mid < end)
 	{
-		std::rotate(std::upper_bound(begin, mid, *mid, comp), mid, std::next(mid));
-		++mid;
-	}
-	return mid;
-}
-template <class It, class Comp>
-static It partial_insertion_sort_ex(It begin, It mid, It end, Comp comp)
-{
-	auto neq_to_mid = [&](auto && value){ return comp(*mid, std::forward<decltype(value)>(value)); };
-	while(std::distance(mid, end))
-	{
-		std::rotate(std::upper_bound(begin, mid, *mid, comp), mid, std::find_if(std::next(mid), end, neq_to_mid));
+		std::rotate(std::upper_bound(begin, mid, *mid, comp), mid, mid + 1);
 		++mid;
 	}
 	return mid;
@@ -677,10 +670,31 @@ struct TimSort
 	 */
 	It get_run(It begin, It end)
 	{
-		return _get_run(begin, end);
+		return _get_run_(begin, end);
+	}
+	It _get_run_(It begin, It end)
+	{
+		const bool is_des = comp(begin[1], *begin);
+		It pos;
+		if(is_des)
+		{
+			pos = std::adjacent_find(std::next(begin), end, nrcomp);
+			std::reverse(begin, pos);
+		}
+		else
+		{
+			pos = std::is_sorted_until(std::next(begin), end, comp);
+		}
+		if(pos < end)
+			return complete_run(begin, pos, end);
+		else
+			return end;
+		
+		
 	}
 	It _get_run(It begin, It end)
 	{
+		
 		auto pos_asc = std::is_sorted_until(begin, end, comp);
 		// use nrcomp for stability
 		// can't use std::is_sorted() because it requires the comparator to impose strict weak ordering
@@ -688,42 +702,52 @@ struct TimSort
 		
 		// TODO: check if we can '++' either of the 'pos_***' values without breaking anything. 
 		//       should work because theyre past-the-end but do actually satisfy the ordering
-		auto pos = begin;
+		auto pos = pos_des;
+	
 		if(pos_asc <= pos_des)
-		{
 			std::reverse(begin, pos_des);
-			pos = pos_des;
-		}
 		else
-		{
 			pos = pos_asc;
-		}
-		if(pos == end)
-		{
+		
+		if(pos < end)
+			return complete_run(begin, pos, end);
+		else
 			return pos;
-		}
-		return complete_run(begin, pos, end);
 	}
 
 	It complete_run(It begin, It mid, It end)
 	{
 		auto runlen = std::distance(begin, mid);
-		
+		auto run_end_pos = end;
 		// check if we've satisfied the minrun requirement
 		if (runlen > minrun)
 		{
+			// we want to garuntee that there are always at least 2 elements in the next run
+			// TODO: probably a reasonable place for '__builtin_expect()'?  
+			if(std::distance(mid, end) == 1)
+			{
+				partial_insertion_sort(begin, mid, end, comp);
+				return end;
+				// TODO: __builtin_unreachable()? (that the result != end) 
+				// return end;
+			}
 			return mid;
 		}
 		else
 		{
 			// add items to the run until we satisfy minrun or run out of items to add
 			auto limit = std::min(end, begin + minrun);
-			return partial_insertion_sort(begin, mid, limit, comp);
+			const std::size_t remain = std::distance(limit, end);
+			if(remain < minrun)
+				limit = end;
+			partial_insertion_sort(begin, mid, limit, comp);
+			return limit;
 		}
 	}
 	
 	void merge_runs(It begin, It mid, It end)
 	{
+		// TODO:  DECIDE WHICH SIDE TO MERGE FROM AFTER ADJUSTING FOR FRONT AND BACK CLIPPING
 		_merge_runs(begin, mid, end);
 	}
 	void _merge_runs(It begin, It mid, It end)
@@ -758,7 +782,7 @@ struct TimSort
 		// use binary search instead of galloping because galloping sometimes stops
 		// short of the first out-of-place element.
 		
-		// TODO: see if doing a pre-check for 'not cmp(*mid, *begin)' improves perf
+		// TODO: see if doing the upper-bound things helps or hurts more
 		begin = std::upper_bound(begin, mid, *mid, cmp);
 		if(begin == mid)
 			return;
@@ -775,18 +799,16 @@ struct TimSort
 		auto left_range_search_pred = make_merge_search_predicate_upper_bound(rbegin, cmp);
 		auto right_range_search_pred = make_merge_search_predicate_lower_bound(lbegin, cmp);
 		auto transplant_range = [&](auto begin, auto end, auto pred) {
-			auto pos = fused_linear_gallop_search(begin, end, pred);
+			auto pos = fused_linear_gallop_search_with_incr(begin, end, pred);
 			return std::make_pair(pos, std::move(begin, pos, dest));
 		};
 		while((lbegin < lend) and (rbegin < rend))
 		{
-			// TODO: std::next(rbegin)? we already checked that the first one satisfies the predicate
 			if(left_range_search_pred(*lbegin))
 				std::tie(rbegin, dest) = transplant_range(rbegin, rend, right_range_search_pred);
 			else
 				std::tie(lbegin, dest) = transplant_range(lbegin, lend, left_range_search_pred);
 		}
-		// TODO: test that below is true
 		// only need to copy from the left range.  if the right range is the only remaining range, 
 		// then it's already in the right spot
 		std::move(lbegin, lend, dest);
@@ -837,6 +859,17 @@ struct TimSort
 		min_gallop = min_gallop_adjust(begin, pos);
 		return pos;
 	}
+	template <class Iter, class Pred>
+	Iter fused_linear_gallop_search_with_incr(Iter begin, Iter end, Pred pred)
+	{
+		auto [stopping_point, try_gallop] = linear_search_stopping_point(begin, end);
+		auto pos = std::find_if(std::next(begin), stopping_point, pred);
+		if(try_gallop and (pos == stopping_point))
+			pos = gallop_lower_bound(pos, end, pred);
+		min_gallop = min_gallop_adjust(begin, pos);
+		return pos;
+	}
+
 
 	template <class Iter>
 	std::pair<Iter, bool> linear_search_stopping_point(Iter begin, Iter end)
@@ -957,6 +990,5 @@ void timsort(It begin, It end)
 {
 	timsort(begin, end, std::less<>());
 }
-
 
 #endif /* TIMSORT_H */

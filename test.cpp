@@ -122,16 +122,19 @@ void test_census()
 {
 	static const auto & data_cpy = read_census_data();
 	std::cerr << "test_census<" << I << ">()" << std::endl;
-	static auto data = data_cpy;
+	auto data = data_cpy;
+	auto data_stable = data_cpy;
 	auto cmp = [](const auto & a, const auto & b) {
 		return std::get<I>(a) < std::get<I>(b);
 	};
 	timsort(data.begin(), data.end(), cmp);
-	assert(std::is_sorted(data.begin(), data.end(), cmp));
-	assert(std::is_permutation(data.begin(), data.end(), data_cpy.begin(), data_cpy.end()));
-	auto data_stable = data_cpy;
 	std::stable_sort(data_stable.begin(), data_stable.end(), cmp);
-	assert(data_stable == data);
+	if(not (data_stable == data))
+	{
+		assert(std::is_sorted(data.begin(), data.end(), cmp));
+		assert(std::is_permutation(data.begin(), data.end(), data_cpy.begin(), data_cpy.end()));
+		assert(false and "data sorted correctly but not stable.");
+	}
 
 	// stability test
 	
