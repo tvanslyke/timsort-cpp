@@ -2,30 +2,68 @@
 #include <iterator>
 #include <utility>
 #include <cstdint>
-static constexpr const std::size_t gallop_index_count = std::numeric_limits<std::size_t>::digits;
-using index_array_t = std::array<std::size_t, gallop_index_count>;
-
-template <std::size_t ... I>
-static constexpr const index_array_t make_gallop_index_array(std::index_sequence<I...>)
+#include <iostream>
+template <class It, class Pred>
+It gallop_lower_bound_ex__unchecked(It begin, It end, Pred pred)
 {
-	return index_array_t{((std::size_t(0x01) << I) - 1) ...};
-} 
-static constexpr const index_array_t gallop_indices{
-	 make_gallop_index_array(std::make_index_sequence<gallop_index_count>{})
-};
+	const std::size_t stopindex = std::distance(begin, end) + 1;
+	std::size_t index = 1;
+
+	if(pred(*begin))
+	 	return begin;
+	while(index < stopindex and not pred(begin[index - 1]))
+	{
+		index *= 2;
+	}
+	return begin + (index / 2);
+}
+
+
+
+
+template <class It>
+static It gallop_step(It begin, It it)
+{
+	return begin + (2 * (std::distance(begin, it) + 1) - 1);
+}
+template <class It>
+static It gallop_step_reverse(It begin, It it)
+{
+	return begin + ((std::distance(begin, it) + 1) / 2 - 1);
+}
 
 template <class It, class Pred>
-It gallop_lower_bound_ex(It begin, It end, Pred pred)
+static It gallop_lower_bound(It begin, It end, Pred pred)
 {
-	auto idx = gallop_indices.begin();
-	if((begin >= end) or pred(*begin))
-	 	return begin;
-	do{
-		++idx;
-	}while((begin + (*idx)) < end and not pred(begin[*idx]));
-	--idx;
-	return std::next(begin, *idx);
+	// if(begin < end)
+	// {
+		if(pred(*begin))
+			return begin;
+		It pos = std::next(begin);
+		while(pos < end and not pred(*pos))
+		{
+			pos = gallop_step(begin, pos);
+		}
+		return gallop_step_reverse(begin, pos) + 1;
+	// }
+	// else
+	// {
+	// 	assert(false);
+	// 	return begin;
+	// }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 template <std::size_t ... I>
 static constexpr const std::array<unsigned char, sizeof...(I)> make_small_array(std::index_sequence<I...>)

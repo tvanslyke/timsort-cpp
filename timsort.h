@@ -38,54 +38,6 @@ static constexpr std::size_t div_by_log2phi(std::size_t num)
 
 
 
-// TODO: test perf for partial_insertion_sort() vs partial_insertion_sort_ex()
-template <class It, class Comp>
-static It old_partial_insertion_sort(It begin, It mid, It end, Comp comp)
-{
-	while(mid < end)
-	{
-		std::rotate(std::upper_bound(begin, mid, *mid, comp), mid, mid + 1);
-		++mid;
-	}
-	return mid;
-}
-
-template <class It>
-static It gallop_step(It begin, It it)
-{
-	return begin + (2 * (std::distance(begin, it) + 1) - 1);
-}
-template <class It>
-static It gallop_step_reverse(It begin, It it)
-{
-	return begin + ((std::distance(begin, it) + 1) / 2 - 1);
-}
-
-template <class It, class Pred>
-static It gallop_lower_bound(It begin, It end, Pred pred)
-{
-	if(begin < end)
-	{
-		if(pred(*begin))
-		{
-			return begin;
-		}
-		else
-		{
-			It pos = std::next(begin);
-			while(pos < end and not pred(*pos))
-			{
-				pos = gallop_step(begin, pos);
-			}
-			return gallop_step_reverse(begin, pos) + 1;
-		}
-	}
-	else
-	{
-		return begin;
-	}
-}
-
 
 
 struct TimSortRunStack
@@ -850,21 +802,13 @@ struct TimSort
 	}
 
 	template <class Iter, class Pred>
-	Iter fused_linear_gallop_search(Iter begin, Iter end, Pred pred)
-	{
-		auto [stopping_point, try_gallop] = linear_search_stopping_point(begin, end);
-		auto pos = std::find_if(begin, stopping_point, pred);
-		if(try_gallop and (pos == stopping_point))
-			pos = gallop_lower_bound(pos, end, pred);
-		min_gallop = min_gallop_adjust(begin, pos);
-		return pos;
-	}
-	template <class Iter, class Pred>
 	Iter fused_linear_gallop_search_with_incr(Iter begin, Iter end, Pred pred)
 	{
-		auto [stopping_point, try_gallop] = linear_search_stopping_point(begin, end);
+		auto stopping_point = linear_search_stopping_point(begin, end);
 		auto pos = std::find_if(std::next(begin), stopping_point, pred);
-		if(try_gallop and (pos == stopping_point))
+		if(stopping_point == end)
+			return pos;
+		if(pos == stopping_point)
 			pos = gallop_lower_bound(pos, end, pred);
 		min_gallop = min_gallop_adjust(begin, pos);
 		return pos;
@@ -872,13 +816,12 @@ struct TimSort
 
 
 	template <class Iter>
-	std::pair<Iter, bool> linear_search_stopping_point(Iter begin, Iter end)
+	Iter linear_search_stopping_point(Iter begin, Iter end)
 	{
-		std::size_t dist = std::distance(begin, end);
-		if(min_gallop < dist)
-			return {begin + min_gallop, true};
+		if(min_gallop < std::distance(begin, end))
+			return begin + min_gallop;
 		else
-			return {end, false};
+			return end;
 	}
 
 	template <class Iter>
