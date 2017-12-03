@@ -250,48 +250,97 @@ std::size_t gallop_merge(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt ren
 	return min_gallop;
 }
 
-
+template <class LeftIt, class RightIt, class DestIt, class Comp>
+DestIt binary_merge(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp)
+{
+	for(std::size_t dist = 0, lsize = lend - lbegin, rsize = rend - rbegin; lsize > 0;)
+	{
+		dist = std::lower_bound(rbegin, rend, *lbegin, comp) - rbegin;
+		std::move(rbegin, rbegin + dist, dest);
+		dest += dist;
+		rbegin += dist;
+		rsize -= dist;
+		if(not (rsize > 0))
+		{
+			std::move(lbegin, lend, dest);
+			return dest;
+		}
+		dist = std::upper_bound(lbegin, lend, *rbegin, comp) - lbegin;
+		std::move(lbegin, lbegin + dist, dest);
+		dest += dist;
+		lbegin += dist;
+		lsize -= dist;
+		if(not (lsize > 0))
+			return dest;
+	}
+	// TODO: UNREACHABLE
+	return dest;
+}
+template <class LeftIt, class RightIt, class DestIt, class Comp>
+DestIt linear_merge(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp)
+{
+	for(;;)
+	{
+		for(;;)
+		{
+			if(rbegin == rend)
+				return std::move(lbegin, lend, dest);
+			else if(comp(*rbegin, *lbegin))
+				*dest++ = std::move(*rbegin++);
+			else
+				break;
+		}
+		for(;;)
+		{
+			if(lbegin == lend)
+				return dest;
+			else if(not comp(*rbegin, *lbegin))
+				*dest++ = std::move(*lbegin++);
+			else
+				break;
+		}
+		
+	}
+}
 template <class LeftIt, class RightIt, class DestIt, class Comp>
 std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp, std::size_t min_gallop)
 {
-	// lbegin < lend and rbegin < rend
-	for(std::size_t i=0, stop=0, lsize = lend - lbegin, rsize = rend - rbegin; ; ++min_gallop)
+	// TODO: switch to a pure linear-search merge after one or both ranges are shorter than min-gallop
+	for(std::size_t i=0, stop=0; ; ++min_gallop)
 	{
-		// TODO: only need to check lbegin < lend.
-		// TODO: do{ } while(); 
 		// LINEAR SEARCH MODE
 		for(;;)
 		{
+			// TODO: just use iterators?  
+			// TODO: have a bool to save whether min_gallop < end - begin
 			// Search the right-hand range
-			for(i = 0, stop = std::min(size_t(rend - rbegin), min_gallop); (i < stop); ++i) 
+			stop = std::min(min_gallop, std::size_t(rend - rbegin));
+			for(i = 0; (i < stop) and comp(*rbegin, *lbegin); ++i) 
+				*dest++ = std::move(*rbegin++);
+
+			if(rbegin == rend)
 			{
-				if(not comp(*rbegin, *lbegin))
-				{
-					
-				}
-			};
-			dest = std::move(rbegin, rbegin + i, dest);
-			rbegin += i;
-			if(not (rbegin < rend))
-				goto copy_left_and_finish;
+				std::move(lbegin, lend, dest);
+				return min_gallop;
+			}
 			else if(not (i < min_gallop))
 				break;
 
 			// Search the left-hand range
-			for(i = 0, stop = std::min(size_t(lend - lbegin), min_gallop); (i < stop) and not comp(*rbegin, *lbegin); ++i) {
+			stop = std::min(min_gallop, std::size_t(lend - lbegin));
+			for(i = 0; (i < stop) and not comp(*rbegin, *lbegin); ++i) 
 				*dest++ = std::move(*lbegin++);
-			}
-			//dest = std::move(lbegin, lbegin + i, dest);
-			//lbegin += i;
 
 			if(lbegin == lend)
-				goto finish;
-			if(not (i < min_gallop))
+				return min_gallop;
+			else if(not (i < min_gallop))
 				break;
 		}
+		++min_gallop;
 		// GALLOP SEARCH MODE
-		for(std::size_t g_dist = gallop_win_dist; (g_dist >= gallop_win_dist); min_gallop -= min_gallop > 1)
+		for(std::size_t g_dist = gallop_win_dist; (g_dist >= gallop_win_dist); )
 		{
+			min_gallop -= (min_gallop > 1);
 			i = 0;
 			for(i = 0, stop = (rend - rbegin); i < stop and comp(rbegin[i], *lbegin);) 
 				i = (i + 1) * 2 - 1;
@@ -302,24 +351,24 @@ std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt 
 				dest = std::move(rbegin, rbegin + stop, dest);
 				rbegin += stop;
 				if(not (rbegin < rend))
-					goto copy_left_and_finish;
+				{
+					std::move(lbegin, lend, dest);
+					return min_gallop;
+				}
 				i = 0;
 			}
 			
 			i = 1;
 			for(stop = lend - lbegin; (i < stop) and (not comp(*rbegin, lbegin[i]));) 
 				i = (i + 1) * 2 - 1;
-			g_dist =  std::max(i, g_dist);
+			g_dist = std::max(i, g_dist);
 			stop = std::upper_bound(lbegin + ((i + 1) / 2), lbegin + std::min(i, size_t(lend - lbegin)), *rbegin, comp) - lbegin;
 			dest = std::move(lbegin, lbegin + stop, dest);
 			lbegin += stop;
 			if(not (lbegin < lend)) 
-				goto finish;
+				return min_gallop;
 		}
 	}
-    copy_left_and_finish:
-	std::move(lbegin, lend, dest);
-    finish:
 	return min_gallop;
 }
 

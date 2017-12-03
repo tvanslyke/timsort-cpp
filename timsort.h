@@ -731,7 +731,11 @@ struct TimSort
 	{
 		auto mem_begin = get_merge_mem(begin, mid);
 		auto mem_end = mem_begin + (mid - begin);
-		min_gallop = gallop_merge_ex(mem_begin, mem_end, mid, end, begin, cmp, min_gallop);
+		if(((mid - begin) < min_gallop) and ((end - mid) < min_gallop))
+		        // if both of the ranges are shorter than min-gallop, we're better off just doing a linear search
+			linear_merge(mem_begin, mem_end, mid, end, begin, cmp);
+		else
+			min_gallop = gallop_merge_ex(mem_begin, mem_end, mid, end, begin, cmp, min_gallop);
 		release_merge_mem(mem_begin);
 	}
 
@@ -773,7 +777,6 @@ struct TimSort
 
 	const std::size_t minrun;
 	std::size_t min_gallop;
-
 	
 	static constexpr const std::size_t default_min_gallop = gallop_win_dist;
 };
