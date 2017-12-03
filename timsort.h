@@ -622,7 +622,7 @@ struct TimSort
 	 */
 	It get_run(It begin, It end)
 	{
-		return _get_run_(begin, end);
+		return _get_run(begin, end);
 	}
 	It _get_run_(It begin, It end)
 	{
@@ -702,14 +702,16 @@ struct TimSort
 		// TODO:  DECIDE WHICH SIDE TO MERGE FROM AFTER ADJUSTING FOR FRONT AND BACK CLIPPING
 		_merge_runs(begin, mid, end);
 	}
+
 	void _merge_runs(It begin, It mid, It end)
 	{
-		std::size_t left_dist = std::distance(begin, mid);
-		std::size_t right_dist = std::distance(mid, end);
-		// TODO: is it even possible for these to be zero?
-		if(left_dist == 0 or right_dist == 0)
+		begin = std::upper_bound(begin, mid, *mid, comp);
+		end = std::lower_bound(mid, end, *(mid - 1), comp);
+		// TODO: remove this if ?
+		if(begin == mid or mid == end)
 			return;
-		else if(left_dist <= right_dist)
+
+		if((end - mid) > (mid - begin))
 		{
 			// merge from the left
 			do_merge(begin, mid, end, comp);
@@ -717,125 +719,20 @@ struct TimSort
 		else 
 		{
 			// merge from the right
-			auto rbegin = std::make_reverse_iterator(end);
-			auto rmid = std::make_reverse_iterator(mid);
-			auto rend = std::make_reverse_iterator(begin);
-			// use reverse comparator to ensure stability
-			do_merge(rbegin, rmid, rend, rcomp);
+			do_merge(std::make_reverse_iterator(end), 
+				 std::make_reverse_iterator(mid),
+				 std::make_reverse_iterator(begin), 
+				 rcomp);
 		}
 	}
+
 	template <class Iter, class Cmp>
 	void do_merge(Iter begin, Iter mid, Iter end, Cmp cmp)
 	{
-		// advance 'begin' until the first element that's greater than '*mid'
-		// reduces number of elements needed for merge memory buffer and could
-		// allow us to even allocate on the stack
-		//
-		// use binary search instead of galloping because galloping sometimes stops
-		// short of the first out-of-place element.
-		
-		// TODO: see if doing the upper-bound things helps or hurts more
-		begin = std::upper_bound(begin, mid, *mid, cmp);
-		if(begin == mid)
-			return;
 		auto mem_begin = get_merge_mem(begin, mid);
-		auto mem_end = mem_begin + std::distance(begin, mid);
-		_do_merge(mem_begin, mem_end, mid, end, begin, cmp);
+		auto mem_end = mem_begin + (mid - begin);
+		min_gallop = gallop_merge_ex(mem_begin, mem_end, mid, end, begin, cmp, min_gallop);
 		release_merge_mem(mem_begin);
-	}
-	
-	
-	template <class LeftIter, class RightIter, class DestIter, class Cmp>
-	void _do_merge(LeftIter lbegin, LeftIter lend, RightIter rbegin, RightIter rend, DestIter dest, Cmp cmp)
-	{
-		auto left_range_search_pred = make_merge_search_predicate_upper_bound(rbegin, cmp);
-		auto right_range_search_pred = make_merge_search_predicate_lower_bound(lbegin, cmp);
-		auto transplant_range = [&](auto begin, auto end, auto pred) {
-			auto pos = fused_linear_gallop_search_with_incr(begin, end, pred);
-			return std::make_pair(pos, std::move(begin, pos, dest));
-		};
-		while((lbegin < lend) and (rbegin < rend))
-		{
-			if(left_range_search_pred(*lbegin))
-				std::tie(rbegin, dest) = transplant_range(rbegin, rend, right_range_search_pred);
-			else
-				std::tie(lbegin, dest) = transplant_range(lbegin, lend, left_range_search_pred);
-		}
-		// only need to copy from the left range.  if the right range is the only remaining range, 
-		// then it's already in the right spot
-		std::move(lbegin, lend, dest);
-	}
-	
-	template <class Iter, class Cmp>
-	auto make_merge_search_predicate_upper_bound(Iter& range_front, Cmp& cmp)
-	{
-		// return a lambda which, when given an object 'v',  returns 'true' if
-		// '*range_front' should come before 'v' in a range sorted according to
-		// the comparison function 'cmp()'
-		//	
-		// that is, if 'cmp()' represents '<', then this function returns 'true'
-		// iff '*range_front < v'
-		// 
-		// the returned function "reaches farther", so-to-say, than it's lower_bound counterpart
-		// when used as a predicate for searching in a sorted range
-		return [&](auto && v) {
-			using v_t = decltype(v);
-			return cmp(*range_front, std::forward<v_t>(v));
-		};
-	}
-	template <class Iter, class Cmp>
-	auto make_merge_search_predicate_lower_bound(Iter& range_front, Cmp& cmp)
-	{
-		// return a lambda which, when given an object 'v',  returns 'true' if
-		// 'v' should NOT come before '*range_front' in a range sorted according to
-		// the comparison function 'cmp()'
-		//	
-		// that is, if 'cmp()' represents '<', then this function returns 'true'
-		// iff 'not (v < *range_front)'
-		//
-		// the returned function does NOT "overreach", so-to-say, unlike it's upper_bound counterpart
-		// when used as a predicate for searching in a sorted range
-		return [&](auto && v) {
-			using v_t = decltype(v);
-			return not cmp(std::forward<v_t>(v), *range_front);
-		};
-	}
-
-	template <class Iter, class Pred>
-	Iter fused_linear_gallop_search_with_incr(Iter begin, Iter end, Pred pred)
-	{
-		auto stopping_point = linear_search_stopping_point(begin, end);
-		auto pos = std::find_if(std::next(begin), stopping_point, pred);
-		if(stopping_point == end)
-			return pos;
-		if(pos == stopping_point)
-			pos = gallop_lower_bound(pos, end, pred);
-		min_gallop = min_gallop_adjust(begin, pos);
-		return pos;
-	}
-
-
-	template <class Iter>
-	Iter linear_search_stopping_point(Iter begin, Iter end)
-	{
-		if(min_gallop < std::distance(begin, end))
-			return begin + min_gallop;
-		else
-			return end;
-	}
-
-	template <class Iter>
-	std::size_t min_gallop_adjust(Iter begin, Iter end)
-	{
-		if(gallop_won(begin, end) and (min_gallop > 0))
-			return min_gallop - 1;
-		else
-			return min_gallop + 1;
-	}
-	template <class Iter>
-	static bool gallop_won(Iter begin, Iter end)
-	{
-		return std::distance(begin, end) >= std::ptrdiff_t(gallop_win_dist);
 	}
 
 	template <class Iter>
@@ -878,8 +775,7 @@ struct TimSort
 	std::size_t min_gallop;
 
 	
-	static constexpr const std::size_t gallop_win_dist = 6;
-	static constexpr const std::size_t default_min_gallop = 8;
+	static constexpr const std::size_t default_min_gallop = gallop_win_dist;
 };
 
 template <class Comp>

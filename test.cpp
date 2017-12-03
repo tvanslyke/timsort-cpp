@@ -1,3 +1,6 @@
+#define BOOST_TEST_MODULE test timsort
+#include <boost/test/included/unit_test.hpp>
+#include <boost/test/parameterized_test.hpp>
 #include "timsort.h"
 #include <iostream>
 #include <random>
@@ -5,23 +8,67 @@
 #include <cassert>
 #include "datasets/read_data_sets.h"
 
-
 static std::mt19937_64 mt{std::random_device{}()};
 
+
+static const auto & census_data()
+{
+	static const auto data = read_census_data();
+	return data;
+}
+
+
+
+template <class It, class Cmp, class EqualTo>
+void test_stable_sort(It data_begin, It data_end, Cmp cmp, EqualTo equal_to = std::equal_to<>{})
+{
+	using value_t = typename std::iterator_traits<It>::value_type;
+	std::vector<value_t> data_copy(data_begin, data_end);
+
+	// checks range equivalence
+	auto ranges_are_equal = [&]() {
+ 		return std::equal(data_begin, data_end, data_copy.begin(), data_copy.end(), equal_to);
+	};
+	
+	// under test
+	timsort(data_begin, data_end, cmp);
+
+	// test that the sort did its job
+	bool sorted = std::is_sorted(data_begin, data_end, cmp);
+	BOOST_TEST_REQUIRE(sorted, "Resultant range is NOT sorted with respect to the given comparator.");
+	
+	// make a copy of the original data
+	std::vector<value_t> original(data_begin, data_end);
+
+	// ground-truth result 
+	std::stable_sort(data_copy.begin(), data_copy.end(), cmp);
+	// check that the sort was stable
+	bool stable = ranges_are_equal();
+	BOOST_TEST_CHECK(stable, "Resultant range is sorted but NOT stable according to the given equality comparator.");
+	// if not, ensure the resultant range is a permutation of the original.
+	// if this fails, the sort is probably overwriting data it shouldn't be
+	if(not stable)
+	{
+		bool value_safe = std::is_permutation(data_begin, data_end, original.begin(), original.end(), equal_to);
+		BOOST_TEST_REQUIRE(value_safe, "Resultant range is not a permutation of the original data.  " 
+					       "The sort is not value-safe."
+		);
+	}
+}
+
 template <class It>
-void randarr(It begin, It end, int minm, int maxm)
+void random_ints(It begin, It end, int minm, int maxm)
 {
 	std::uniform_int_distribution<int> dist(minm, maxm);
 	while(begin < end)
 	{
-		*begin = dist(mt);
-		++begin;
+		*begin++ = dist(mt);
 	}
 }
+
 template <class It>
-void randarr_str(It begin, It end, std::size_t min_size, std::size_t max_size, char minm, char maxm)
+void random_strs(It begin, It end, std::size_t min_size, std::size_t max_size, char minm, char maxm)
 {
-	
 	std::uniform_int_distribution<char> randchr(minm, maxm);
 	std::uniform_int_distribution<std::size_t> randsize(min_size, max_size);
 	while(begin < end)
@@ -33,130 +80,194 @@ void randarr_str(It begin, It end, std::size_t min_size, std::size_t max_size, c
 	}
 }
 
-template <class V>
-void print(const V & v, const char * delim = ", ")
-{
-	for(const auto & item:v)
-	{
-		std::cout << item << delim;
-	}
-	std::cout << std::endl;
-}
 
-template <class V>
-void printv(const V & v, const char * delim = ", ")
-{
-	for(const auto & item:v)
-	{
-		for(auto c:item)
-			std::cout << item;
-		std::cout << delim << std::endl;
-	}
-	std::cout << std::endl;
-}
+template <class Comp>
+using int_params_t = std::tuple<int, int, Comp, std::equal_to<>, std::vector<std::size_t>>;
 
-template <class V>
-void print_mismatches(const V& left, const V& right)
+
+template <class Params>
+void int_test(const Params & params)
 {
-	auto l = left.begin();
-	auto r = right.begin();
-	auto le = left.end();
-	auto re = right.end();
-	while(l < le)
+	int minm = std::get<0>(params);
+	int maxm = std::get<1>(params);
+	auto cmp = std::get<2>(params);
+	auto eq = std::get<3>(params);
+	std::vector<std::size_t> lengths = std::get<4>(params);
+	std::vector<int> data;
+	for(auto size: lengths)
 	{
-		std::tie(l, r) = std::mismatch(l, le, r, re);
-		++l;
-		++r;
-		if(l == le)
-			break;
-		std::cout << std::distance(left.begin(), l) << ": " << *l << ", " << *r << std::endl;
+		data.resize(size);
+		random_ints(data.begin(), data.end(), minm, maxm);
+		test_stable_sort(data.begin(), data.end(), cmp, eq);
 	}
 }
 
-void test_ints()
+template <class Comp>
+using str_params_t = std::tuple<char, char, std::size_t, std::size_t, Comp, std::equal_to<>, std::vector<std::size_t>>;
+
+template <class Params>
+void str_test(const Params & params)
 {
-	std::cerr << "test_ints()" << std::endl;
-	std::uniform_int_distribution<std::size_t> sz_rng(0, 50);
-	std::vector<int> arr;
-	arr.resize(1000); 
-	auto arr2 = arr;
-	for(auto i = 0; i < 1000; ++i)
+	char minm = std::get<0>(params);
+	char maxm = std::get<1>(params);
+	auto minlen = std::get<2>(params);
+	auto maxlen = std::get<3>(params);
+	auto cmp = std::get<4>(params);
+	auto eq = std::get<5>(params);
+	std::vector<std::size_t> lengths = std::get<6>(params);
+	std::vector<std::string> data;
+	for(auto size: lengths)
 	{
-		arr.resize(sz_rng(mt));
-		randarr(arr.begin(), arr.end(), 0, 100);
-		arr2 = arr;
-		timsort(arr.begin(), arr.end(), std::less<>());
-		std::sort(arr2.begin(), arr2.end());
-		if((not std::is_sorted(arr.begin(), arr.end(), std::less<>())) or (arr != arr2))
-		{
-			std::cerr << "Sort Failure." << std::endl;
-		}
-		// assert(arr == arr2);
+		data.resize(size);
+		random_strs(data.begin(), data.end(), minlen, maxlen, minm, maxm);
+		test_stable_sort(data.begin(), data.end(), cmp, eq);
+		// sorted ascending
+		random_strs(data.begin(), data.end(), minlen, maxlen, minm, maxm);
+		std::sort(data.begin(), data.end(), std::less<>());
+		test_stable_sort(data.begin(), data.end(), cmp, eq);
+		// sorted descending
+		random_strs(data.begin(), data.end(), minlen, maxlen, minm, maxm);
+		std::sort(data.begin(), data.end(), std::greater<>());
+		test_stable_sort(data.begin(), data.end(), cmp, eq);
 	}
 }
-void test_strs()
-{
-	std::cerr << "test_strs()" << std::endl;
-	std::uniform_int_distribution<std::size_t> sz_rng(0, 50);
-	std::vector<std::string> arr;
-	arr.resize(100); 
-	auto arr2 = arr;
-	for(auto i = 0; i < 1000; ++i)
-	{
-		arr.resize(sz_rng(mt));
-		randarr_str(arr.begin(), arr.end(), 10, 100, 'a', 'z' + 1);
-		arr2 = arr;
-		timsort(arr.begin(), arr.end(), std::less<>());
-		std::sort(arr2.begin(), arr2.end());
-		if((not std::is_sorted(arr.begin(), arr.end(), std::less<>())) or (arr != arr2))
-		{
-			std::cerr << "Sort Failure." << std::endl;
-		}
-		assert(arr == arr2);
-	}
-}
+
 
 
 template <std::size_t I>
-void test_census()
+bool census_comparator(const naics_t& left, const naics_t& right)
 {
-	static const auto & data_cpy = read_census_data();
-	std::cerr << "test_census<" << I << ">()" << std::endl;
-	auto data = data_cpy;
-	auto data_stable = data_cpy;
-	auto cmp = [](const auto & a, const auto & b) {
-		return std::get<I>(a) < std::get<I>(b);
-	};
-	timsort(data.begin(), data.end(), cmp);
-	std::stable_sort(data_stable.begin(), data_stable.end(), cmp);
-	if(not (data_stable == data))
-	{
-		assert(std::is_sorted(data.begin(), data.end(), cmp));
-		assert(std::is_permutation(data.begin(), data.end(), data_cpy.begin(), data_cpy.end()));
-		assert(false and "data sorted correctly but not stable.");
-	}
-
-	// stability test
-	
+	return std::get<I>(left) < std::get<I>(right);
 }
-int main()
+
+
+
+BOOST_AUTO_TEST_CASE(census_data_0)
 {
-	test_ints();
-	test_strs();
-	test_census<0>();
-	test_census<1>();
-	test_census<2>();
-	test_census<3>();
-	test_census<4>();
-	test_census<5>();
-	test_census<6>();
-	test_census<7>();
-	test_census<8>();
-	test_census<9>();
-	test_census<10>();
-	test_census<11>();
-	test_census<12>();
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<0>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_1)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<1>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_2)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<2>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_3)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<3>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_4)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<4>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_5)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<5>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_6)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<6>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_7)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<7>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_8)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<8>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_9)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<9>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_10)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<10>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_11)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<11>, std::equal_to<>{});
+}
+BOOST_AUTO_TEST_CASE(census_data_12)
+{
+	auto data = census_data();
+	test_stable_sort(data.begin(), data.end(), census_comparator<12>, std::equal_to<>{});
+}
+
+
+static const std::vector<int_params_t<std::less<>>> int_params_less{
+	{0,        1, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000}}, 
+	{0,       10, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{0, 10000000, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+};
+
+
+static const std::vector<int_params_t<std::greater<>>> int_params_greater{
+	{0,        1, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000}}, 
+	{0,       10, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{0, 10000000, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+};
+
+static const std::vector<str_params_t<std::less<>>> str_params_less{
+	{char(32),  char(128), 0,   0, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{char(32),  char(128), 0,   1, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}},
+	{char(32),  char(128), 0,   2, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}},
+	{char(32),  char(128), 0,   8, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{char(32),  char(128), 0,  32, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{char(32),  char(128), 0, 128, std::less<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+};
+
+static const std::vector<str_params_t<std::greater<>>> str_params_greater{
+	{char(32),  char(128), 0,   0, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{char(32),  char(128), 0,   1, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}},
+	{char(32),  char(128), 0,   2, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}},
+	{char(32),  char(128), 0,   8, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}},
+	{char(32),  char(128), 0,  32, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+	{char(32),  char(128), 0, 128, std::greater<>(), std::equal_to<>(), {0, 1, 2, 3, 10, 1000, 100000}}, 
+};
+
+static auto* int_test_less = int_test<int_params_t<std::less<>>>;
+static auto* int_test_greater = int_test<int_params_t<std::greater<>>>;
+static auto* str_test_less = str_test<str_params_t<std::less<>>>;
+static auto* str_test_greater = str_test<str_params_t<std::greater<>>>;
+
+
+///// HACK BECAUSE I ONLY SUPERFICIALLY KNOW HOW TO USE Boost.test
+
+int add_param_tests();
+static int _hack = add_param_tests();
+
+int add_param_tests()
+{
+	// test_suite* ts = BOOST_TEST_SUITE( "timsort-test" );
+	// boost::unit_test::framework::master_test_suite().add( BOOST_TEST_CASE( &test_case1 ) );
+
+	boost::unit_test::framework::master_test_suite().add( 
+		BOOST_PARAM_TEST_CASE(int_test_less,    int_params_less.begin(),    int_params_less.end())
+	);
+	boost::unit_test::framework::master_test_suite().add( 
+		BOOST_PARAM_TEST_CASE(int_test_greater, int_params_greater.begin(), int_params_greater.end())
+	);
+	boost::unit_test::framework::master_test_suite().add( 
+		BOOST_PARAM_TEST_CASE(str_test_less,    str_params_less.begin(),    str_params_less.end())
+	);
+	boost::unit_test::framework::master_test_suite().add( 
+		BOOST_PARAM_TEST_CASE(str_test_greater, str_params_greater.begin(), str_params_greater.end())
+	);
 	return 0;
 }
-
 

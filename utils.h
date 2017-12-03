@@ -3,6 +3,10 @@
 #include <utility>
 #include <cstdint>
 #include <iostream>
+#include "compiler.h"
+
+
+
 template <class It, class Pred>
 It gallop_lower_bound_ex__unchecked(It begin, It end, Pred pred)
 {
@@ -17,7 +21,7 @@ It gallop_lower_bound_ex__unchecked(It begin, It end, Pred pred)
 	}
 	return begin + (index / 2);
 }
-
+static constexpr const std::size_t gallop_win_dist = 7;
 
 
 
@@ -33,37 +37,291 @@ static It gallop_step_reverse(It begin, It it)
 }
 
 template <class It, class Pred>
-static It gallop_lower_bound(It begin, It end, Pred pred)
+It gallop_lower_bound(It begin, It end, Pred pred)
 {
-	// if(begin < end)
-	// {
-		if(pred(*begin))
-			return begin;
-		It pos = std::next(begin);
-		while(pos < end and not pred(*pos))
-		{
-			pos = gallop_step(begin, pos);
-		}
-		return gallop_step_reverse(begin, pos) + 1;
-	// }
-	// else
-	// {
-	// 	assert(false);
-	// 	return begin;
-	// }
+	if(pred(*begin))
+		return begin;
+	It pos = std::next(begin);
+	while(pos < end and not pred(*pos))
+	{
+		pos = gallop_step(begin, pos);
+	}
+	return gallop_step_reverse(begin, pos) + 1;
+}
+
+
+template <bool UpperBound, class It, class Pred>
+inline std::pair<It, It> gallop_reduce_search_region(It begin, It end, Pred pred)
+{
+	auto pos = begin;
+	while(pos < end and not pred(*pos))
+		pos = gallop_step(begin, pos);
+	return {gallop_step_reverse(begin, pos), std::min(pos, end)};
+}
+
+template <class It>
+using iter_value_t = typename std::iterator_traits<It>::value_type;
+
+template <class It, class Comp>
+std::pair<It, It> gallop_reduce_search_region_lb(It begin, It end, const iter_value_t<It>& bound, Comp comp)
+{
+	return gallop_reduce_search_region(begin, 
+					   end, 
+					   [&](auto && v) { return not comp(std::forward<decltype(v)>(v), bound); }
+	);
+}
+
+template <class It, class Comp>
+std::pair<It, It> gallop_reduce_search_region_ub(It begin, It end, const iter_value_t<It>& bound, Comp comp)
+{
+	return gallop_reduce_search_region(begin, 
+					   end, 
+					   [&](auto && v) { return comp(bound, std::forward<decltype(v)>(v)); }
+	);
+}
+
+
+// TODO: implement eager copy behavior and test efficiency
+template <class It, class T, class Comp>
+It _gallop_upper_bound(const It begin, const It end, const T & value, Comp comp)
+{
+	It pos = begin;
+	while(pos < end and not comp(value, *pos))
+	{
+		pos = gallop_step(begin, pos);
+	}
+	return pos;
+}
+template <class It, class T, class Comp>
+It _gallop_lower_bound(It begin, It end, const T & value, Comp comp)
+{
+	It pos = begin;
+	while(pos < end and comp(*pos, value))
+	{
+		pos = gallop_step(begin, pos);
+	}
+	return pos;
+}
+template <class It, class Pred>
+It _gallop_while(It begin, It end, Pred pred)
+{
+	It pos = begin;
+	while(pos < end and pred(*pos))
+	{
+		pos = gallop_step(begin, pos);
+	}
+	return pos;
+}
+
+template <bool UseUpperBound, class It, class T, class Comp>
+std::pair<It, It> _get_gallop_limits(It begin, It end, const T& value, Comp comp)
+{
+	if constexpr(UseUpperBound) 
+	{
+		It pos = _gallop_upper_bound(begin, end, value, comp);
+		return {gallop_step_reverse(begin, pos), std::min(pos, end)};
+	}
+	else
+	{
+		It pos = _gallop_lower_bound(begin, end, value, comp);
+		return {gallop_step_reverse(begin, pos), std::min(pos, end)};
+	}
+}
+
+template <class It, class T, class Comp>
+It _timsort_lower_bound(It begin, It end, const T& value, Comp comp)
+{
+	auto [b, e] = _get_gallop_limits<false>(begin, end, value, comp);
+	return std::lower_bound(b, e, value, comp);
+}
+template <class It, class T, class Comp>
+It _timsort_upper_bound(It begin, It end, const T& value, Comp comp)
+{
+	auto [b, e] = _get_gallop_limits<true>(begin, end, value, comp);
+	return std::upper_bound(b, e, value, comp);
+}
+
+
+
+// TODO: see if optimized versions of these helper algorithms are any faster
+template <class It, class DestIt, class Pred>
+std::pair<It, DestIt> copy_until(It begin, It end, DestIt dest, Pred pred)
+{
+	auto pos = std::find_if(begin, end, pred);
+	return {pos, std::copy(begin, pos, dest)};
+}
+
+template <class It, class DestIt, class Pred>
+inline std::pair<It, DestIt> copy_while(It begin, It end, DestIt dest, Pred pred)
+{
+	return copy_until(begin, end, dest, std::not_fn(pred));
+}
+
+template <class It, class DestIt, class Pred>
+std::pair<It, DestIt> move_until(It begin, It end, DestIt dest, Pred pred)
+{
+	auto pos = std::find_if(begin, end, pred);
+	return {pos, std::move(begin, pos, dest)};
+}
+
+template <class It, class DestIt, class Pred>
+inline std::pair<It, DestIt> move_while(It begin, It end, DestIt dest, Pred pred)
+{
+	return move_until(begin, end, dest, std::not_fn(pred));
+}
+
+
+template <class T>
+static constexpr const T& const_ref(const T & value)
+{
+	return value;
 }
 
 
 
 
+template <class LeftIt, class RightIt, class DestIt, class Comp>
+std::size_t gallop_merge(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp, std::size_t min_gallop)
+{
+	constexpr bool upper_bound_flag = true;
+	constexpr bool lower_bound_flag = false;
+	const auto right_range_pred = [=](auto && val) { 
+		return comp(std::forward<decltype(val)>(val), *lbegin); 
+	};
+	const auto left_range_pred = [=](auto && val) { 
+		return not comp(*rbegin, std::forward<decltype(val)>(val)); 
+	};
+	LeftIt left_limit;
+	RightIt right_limit;
+	for(; lbegin < lend and rbegin < rend; ++min_gallop)
+	{
+		left_limit = lend;
+		right_limit = rend;
+		// LINEAR SEARCH MODE
+		while(lbegin < left_limit and rbegin < right_limit)
+		{
+			if(comp(*rbegin, *lbegin))
+			{
+				// Search the right-hand range	
+				right_limit = std::min(rbegin + min_gallop, rend);
+				auto pos = std::find_if_not(rbegin, right_limit, right_range_pred);
+				dest = std::move(rbegin, pos, dest);
+				rbegin = pos;
+			}
+			else
+			{
+				// Search the left-hand range	
+				left_limit = std::min(lbegin + min_gallop, lend);
+				auto pos = std::find_if_not(lbegin, left_limit, left_range_pred);
+				dest = std::move(lbegin, pos, dest);
+				lbegin = pos;
+			}
+		}
+		// GALLOP SEARCH MODE
+		for(std::size_t g_dist = gallop_win_dist; 
+		    (g_dist >= gallop_win_dist) and (lbegin < lend) and (rbegin < rend);
+		    min_gallop -= min_gallop > 1)
+		{
+			if(comp(*rbegin, *lbegin))
+			{
+				right_limit = _gallop_while(rbegin, rend, right_range_pred);
+				right_limit = std::lower_bound(gallop_step_reverse(rbegin, right_limit) + 1,
+							       std::min(right_limit, rend),
+							       *lbegin, 
+							       comp);
+				dest = std::move(rbegin, right_limit, dest);
+				g_dist = right_limit - rbegin;
+				rbegin = right_limit;
+			}
+			else
+			{
+				left_limit = _gallop_while(lbegin, lend, left_range_pred);
+				left_limit = std::lower_bound(gallop_step_reverse(lbegin, left_limit) + 1,
+							      std::min(left_limit, lend),
+							      *rbegin, 
+							      comp);
+				dest = std::move(lbegin, left_limit, dest);
+				g_dist = left_limit - lbegin;
+				lbegin = left_limit;
+			}
+		}
+	}
+	std::move(lbegin, lend, dest);
+	return min_gallop;
+}
 
 
+template <class LeftIt, class RightIt, class DestIt, class Comp>
+std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp, std::size_t min_gallop)
+{
+	// lbegin < lend and rbegin < rend
+	for(std::size_t i=0, stop=0, lsize = lend - lbegin, rsize = rend - rbegin; ; ++min_gallop)
+	{
+		// TODO: only need to check lbegin < lend.
+		// TODO: do{ } while(); 
+		// LINEAR SEARCH MODE
+		for(;;)
+		{
+			// Search the right-hand range
+			for(i = 0, stop = std::min(size_t(rend - rbegin), min_gallop); (i < stop); ++i) 
+			{
+				if(not comp(*rbegin, *lbegin))
+				{
+					
+				}
+			};
+			dest = std::move(rbegin, rbegin + i, dest);
+			rbegin += i;
+			if(not (rbegin < rend))
+				goto copy_left_and_finish;
+			else if(not (i < min_gallop))
+				break;
 
+			// Search the left-hand range
+			for(i = 0, stop = std::min(size_t(lend - lbegin), min_gallop); (i < stop) and not comp(*rbegin, *lbegin); ++i) {
+				*dest++ = std::move(*lbegin++);
+			}
+			//dest = std::move(lbegin, lbegin + i, dest);
+			//lbegin += i;
 
-
-
-
-
+			if(lbegin == lend)
+				goto finish;
+			if(not (i < min_gallop))
+				break;
+		}
+		// GALLOP SEARCH MODE
+		for(std::size_t g_dist = gallop_win_dist; (g_dist >= gallop_win_dist); min_gallop -= min_gallop > 1)
+		{
+			i = 0;
+			for(i = 0, stop = (rend - rbegin); i < stop and comp(rbegin[i], *lbegin);) 
+				i = (i + 1) * 2 - 1;
+			g_dist = i;
+			if(i > 0)
+			{
+				stop = std::lower_bound(rbegin + ((i + 1) / 2), rbegin + std::min(i, size_t(rend - rbegin)), *lbegin, comp) - rbegin;
+				dest = std::move(rbegin, rbegin + stop, dest);
+				rbegin += stop;
+				if(not (rbegin < rend))
+					goto copy_left_and_finish;
+				i = 0;
+			}
+			
+			i = 1;
+			for(stop = lend - lbegin; (i < stop) and (not comp(*rbegin, lbegin[i]));) 
+				i = (i + 1) * 2 - 1;
+			g_dist =  std::max(i, g_dist);
+			stop = std::upper_bound(lbegin + ((i + 1) / 2), lbegin + std::min(i, size_t(lend - lbegin)), *rbegin, comp) - lbegin;
+			dest = std::move(lbegin, lbegin + stop, dest);
+			lbegin += stop;
+			if(not (lbegin < lend)) 
+				goto finish;
+		}
+	}
+    copy_left_and_finish:
+	std::move(lbegin, lend, dest);
+    finish:
+	return min_gallop;
+}
 
 template <std::size_t ... I>
 static constexpr const std::array<unsigned char, sizeof...(I)> make_small_array(std::index_sequence<I...>)
