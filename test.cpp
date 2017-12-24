@@ -7,7 +7,7 @@
 #include <vector>
 #include <cassert>
 #include "datasets/read_data_sets.h"
-
+using namespace tim;
 static std::mt19937_64 mt{std::random_device{}()};
 
 
@@ -15,6 +15,17 @@ static const auto & census_data()
 {
 	static const auto data = read_census_data();
 	return data;
+}
+
+void test_contiguous_iterator() // dummy function
+{
+	static_assert(is_contiguous_iterator_v<std::vector<int>::iterator>);
+	static_assert(is_contiguous_iterator_v<std::vector<double>::iterator>);
+	static_assert(is_contiguous_iterator_v<std::vector<double>::const_iterator>);
+	static_assert(is_contiguous_iterator_v<std::string::iterator>);
+	static_assert(is_contiguous_iterator_v<std::string::const_iterator>);
+	static_assert(is_contiguous_iterator_v<int*>);
+	static_assert(is_contiguous_iterator_v<const int*>);
 }
 
 
@@ -98,6 +109,13 @@ void int_test(const Params & params)
 	{
 		data.resize(size);
 		random_ints(data.begin(), data.end(), minm, maxm);
+		test_stable_sort(data.begin(), data.end(), cmp, eq);
+	}
+	for(auto size: lengths)
+	{
+		data.resize(size);
+		std::iota(data.begin(), data.end(), 0);
+		std::shuffle(data.begin(), data.end(), mt);
 		test_stable_sort(data.begin(), data.end(), cmp, eq);
 	}
 }

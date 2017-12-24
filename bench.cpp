@@ -7,6 +7,7 @@
 #include <cmath>
 #include "datasets/read_data_sets.h"
 
+using namespace tim;
 #ifndef SORT_ALGO
 	#error "Must define macro 'SORT_ALGO'."
 #endif
