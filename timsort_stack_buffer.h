@@ -6,53 +6,7 @@
 #include <type_traits>
 #include <iostream>
 #include <cstring>
-#include "contiguous_iterator.h"
-
-
-
-template <class It>
-inline constexpr const bool has_memcpy_safe_value_type_v = 
-		std::is_trivially_copyable_v<typename std::iterator_traits<It>::value_type>;
-
-template <class It>
-static constexpr const bool can_forward_memcpy_v = is_contiguous_iterator_v<It> and has_memcpy_safe_value_type_v<It>;
-
-template <class It>
-static constexpr const bool can_reverse_memcpy_v = is_reverse_contiguous_iterator_v<It> and has_memcpy_safe_value_type_v<It>;
-
-
-template <class It>
-struct GetMemcpyIterator
-{
-	static typename std::iterator_traits<It>::value_type* get(It iter) noexcept
-	{
-		return &(*iter);
-	}
-};
-
-
-template <class T>
-struct GetMemcpyIterator<T*>
-{
-	static T* get(T* iter) noexcept
-	{
-		return iter;
-	}
-};
-template <class T>
-struct GetMemcpyIterator<const T*>
-{
-	static const T* get(const T* iter) noexcept
-	{
-		return iter;
-	}
-};
-
-template <class It>
-auto get_memcpy_iterator(It iter) noexcept
-{
-	return GetMemcpyIterator<It>::get(iter);
-}
+#include "memcpy_algos.h"
 
 
 
@@ -69,7 +23,7 @@ static constexpr std::size_t timsort_max_stack_size() noexcept
 }
 
 
-template <class IntType, class ValueType>
+template <class IntType, class ValueType, std::size_t ExtraValueTypeSlots=0>
 struct timsort_stack_buffer
 {
 	using buffer_pointer_t = ValueType*;
@@ -281,7 +235,31 @@ struct timsort_stack_buffer
 		assert(offset_count() > I);
 		return *(top - (I + 1));
 	}
+	
+	inline bool merge_ABC_case_1() const noexcept
+	{
+		return get_offset<2>() - get_offset<3>() <= get_offset<0>() - get_offset<2>();
+	}
 
+	inline bool merge_ABC_case_2() const noexcept
+	{
+		return get_offset<3>() - get_offset<4>() <= get_offset<1>() - get_offset<3>();
+	}
+
+	inline bool merge_ABC() const noexcept
+	{
+		return merge_ABC_case_1() or merge_ABC_case_2();
+	}
+	inline bool merge_AB() const noexcept
+	{
+		return get_offset<2>() - get_offset<3>() < get_offset<0>() - get_offset<1>();
+	}
+
+	inline bool merge_BC() const noexcept
+	{
+		return get_offset<1>() - get_offset<2>() <= get_offset<0>() - get_offset<1>();
+	}
+	
 	template <std::size_t I>
 	inline IntType get_run_length() const noexcept
 	{
@@ -343,7 +321,8 @@ struct timsort_stack_buffer
 		std::cerr << std::endl;
 	}
 	// TODO: add function to compute bytes needed after run stack is topped out
-	static constexpr const std::size_t buffer_size = timsort_max_stack_size<IntType>();
+	// TODO: IS THIS WRONG???  This calculates bytes.  should calculate quantity 
+	static constexpr const std::size_t buffer_size = (timsort_max_stack_size<std::size_t>() * sizeof(IntType) + ExtraValueTypeSlots * sizeof(ValueType)) / sizeof(IntType);
 	static constexpr const std::size_t required_alignment = alignof(std::aligned_union_t<sizeof(IntType), IntType, ValueType>);
 	alignas(required_alignment) IntType buffer[buffer_size];
 	std::reverse_iterator<IntType*> top;

@@ -7,7 +7,15 @@
 #include <vector>
 #include <valarray>
 #include <cstddef>
-#include <string_view>
+#include <utility>
+
+
+#ifdef __has_include
+# if __has_include(<string_view>)
+#  include <string_view>
+# endif
+#endif
+
 template <class It>
 struct is_valarray_iterator
 {
@@ -34,8 +42,12 @@ struct is_vector_string_or_valarray_iterator
 			or (std::is_same_v<It, typename std::vector<_value_type>::const_iterator> and not std::is_same_v<bool, _value_type>)
 			or std::is_same_v<It, typename std::basic_string<_value_type>::iterator>
 			or std::is_same_v<It, typename std::basic_string<_value_type>::const_iterator>
+#ifdef __has_include
+# if __has_include(<string_view>)
 			or std::is_same_v<It, typename std::basic_string_view<_value_type>::iterator>
 			or std::is_same_v<It, typename std::basic_string_view<_value_type>::const_iterator>
+# endif
+#endif
 			or is_valarray_iterator<It>::value;
 };
 
