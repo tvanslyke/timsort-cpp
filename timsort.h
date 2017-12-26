@@ -243,8 +243,8 @@ struct TimSort
 
 	inline void merge_runs(It begin, It mid, It end)
 	{
-		// begin = std::upper_bound(begin, mid, *mid, comp);
-		// end = std::lower_bound(mid, end, mid[-1], comp);
+		begin = std::upper_bound(begin, mid, *mid, comp);
+		end = std::lower_bound(mid, end, mid[-1], comp);
 		// begin = gallop_upper_bound(begin, mid, *mid, comp);
 		// end = gallop_upper_bound(std::make_reverse_iterator(end), 
 		// 		         std::make_reverse_iterator(mid), 
