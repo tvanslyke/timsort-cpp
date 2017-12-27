@@ -306,6 +306,7 @@ struct timsort_stack_buffer
 	{
 		return bottom[1];
 	}
+
 	/// DEBUGGING
 	void print() const
 	{

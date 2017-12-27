@@ -89,15 +89,17 @@ struct TimSort
 	using value_type = typename std::iterator_traits<It>::value_type;
 	TimSort(It begin_it, It end_it, Comp comp_func):
 		stack_buffer{},
-		temp_buffer{},
+		heap_buffer{},
 		start(begin_it), 
 		comp(std::move(comp_func)), 
 		minrun(compute_minrun(end_it - begin_it)),
 		min_gallop(default_min_gallop)
 	{
+		try_get_cached_heap_buffer(heap_buffer);
 		COMPILER_ASSUME_(minrun > 31 and minrun < 65);
 		fill_run_stack(end_it);
 		collapse_run_stack();
+		try_cache_heap_buffer(heap_buffer);
 	}
 	
 	
@@ -118,7 +120,7 @@ struct TimSort
 	{
 		// resolve_invariants();
 		// std::size_t bottom_run_len = stack_buffer.get_bottom_run_size();
-		// temp_buffer.reserve(std::min(bottom_run_len, total_length - bottom_run_len));
+		// heap_buffer.reserve(std::min(bottom_run_len, total_length - bottom_run_len));
 		
 		for(auto count = stack_buffer.run_count(); count > 1; --count)
 			merge_BC();
@@ -243,16 +245,16 @@ struct TimSort
 
 	inline void merge_runs(It begin, It mid, It end)
 	{
-		begin = std::upper_bound(begin, mid, *mid, comp);
-		end = std::lower_bound(mid, end, mid[-1], comp);
-		// begin = gallop_upper_bound(begin, mid, *mid, comp);
-		// end = gallop_upper_bound(std::make_reverse_iterator(end), 
-		// 		         std::make_reverse_iterator(mid), 
-		// 		         mid[-1], 
-		// 		         [comp=this->comp](auto&& a, auto&& b){
-		// 		            return comp(std::forward<decltype(b)>(b), std::forward<decltype(a)>(a));
-		// 		         }).base();
-		// 
+		// begin = std::upper_bound(begin, mid, *mid, comp);
+		// end = std::lower_bound(mid, end, mid[-1], comp);
+		begin = gallop_upper_bound(begin, mid, *mid, comp);
+		end = gallop_upper_bound(std::make_reverse_iterator(end), 
+				         std::make_reverse_iterator(mid), 
+				         mid[-1], 
+				         [comp=this->comp](auto&& a, auto&& b){
+				            return comp(std::forward<decltype(b)>(b), std::forward<decltype(a)>(a));
+				         }).base();
+		
 		// TODO: remove this if ?
 		if(begin == mid or mid == end)
 			return;
@@ -285,25 +287,73 @@ struct TimSort
 		else
 		{
 			// fall back to a std::vector<> for the merge buffer 
-			temp_buffer.assign(std::make_move_iterator(begin), std::make_move_iterator(mid));
-			min_gallop = gallop_merge_ex(temp_buffer.begin(), temp_buffer.end(), 
-						     mid, end, 
-						     begin, cmp, min_gallop);
+			// try to use memcpy if possible
+			if constexpr(can_forward_memcpy_v<Iter> or not can_reverse_memcpy_v<Iter>)
+			{
+				if constexpr (can_forward_memcpy_v<Iter>)
+				{
+					heap_buffer.resize(mid - begin);
+					std::memcpy(heap_buffer.data(), get_memcpy_iterator(begin), (mid - begin) * sizeof(value_type));
+				}
+				else
+				{
+					heap_buffer.assign(std::make_move_iterator(begin), std::make_move_iterator(mid));
+				}
+				min_gallop = gallop_merge_ex(heap_buffer.begin(), heap_buffer.end(),
+							     mid, end, 
+							     begin, cmp, min_gallop);
+			}
+			else // if constexpr(can_reverse_memcpy_v<Iter>)
+			{
+				heap_buffer.resize(mid - begin);
+				std::memcpy(heap_buffer.data(), get_memcpy_iterator(mid - 1), (mid - begin) * sizeof(value_type));
+				min_gallop = gallop_merge_ex(heap_buffer.rbegin(), heap_buffer.rend(),
+							     mid, end, 
+							     begin, cmp, min_gallop);
+			}
 		}
 	}
 	
+	static constexpr void try_get_cached_heap_buffer(std::vector<value_type>& vec)
+	{
+		if(std::unique_lock lock(heap_buffer_cache_mutex, std::try_to_lock_t{}); lock.owns_lock())
+		{
+			vec = std::move(heap_buffer_cache);
+		}
+	};
+
+	static constexpr void try_cache_heap_buffer(std::vector<value_type>& vec)
+	{
+		if(std::unique_lock lock(heap_buffer_cache_mutex, std::try_to_lock_t{}); 
+			lock.owns_lock() and vec.size() > heap_buffer_cache.size())
+		{
+			heap_buffer_cache = std::move(vec);
+			heap_buffer_cache.clear();
+		}
+	};
+
 	static constexpr const std::size_t extra_stack_max_bytes = sizeof(void*) * 0;
 	timsort_stack_buffer<SizeType, value_type, extra_stack_max_bytes / sizeof(value_type)> stack_buffer; 
-	std::vector<value_type> temp_buffer;
+	std::vector<value_type> heap_buffer;
 	const It start;
 	Comp comp;
 
 	// TODO:  See if passing minrun up the call stack is faster than having it as a member variable
 	const std::ptrdiff_t minrun;
 	std::size_t min_gallop;
+	static std::vector<value_type> heap_buffer_cache;
+	static std::mutex heap_buffer_cache_mutex;
 	static constexpr const std::size_t default_min_gallop = gallop_win_dist;
 };
 
+template <class S, 
+	  class It,
+	  class C>
+std::vector<typename TimSort<S, It, C>::value_type> TimSort<S, It, C>::heap_buffer_cache{};
+template <class S, 
+	  class It,
+	  class C>
+std::mutex TimSort<S, It, C>::heap_buffer_cache_mutex{};
 
 struct MinimizeStackUsageTag {};
 struct AssumeComparisonsExpensiveTag {};

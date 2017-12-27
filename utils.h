@@ -66,20 +66,32 @@ bool linear_search_mode(LeftIt& lbegin, LeftIt lend, RightIt& rbegin, RightIt re
 }
 
 template <class It, class T, class Comp>
-It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
+inline It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
 {
 	using index_t = typename std::iterator_traits<It>::difference_type;
 	index_t i = 1;
-	const index_t stop = end - begin;
-	for(; i <= stop; i *= 2)
+	
+	for(const index_t stop = end - begin; i <= stop; i *= 2)
 	{ 
 		if(not comp(begin[i - 1], value))
 		{
-			return std::upper_bound(begin + (i / 2), begin + (i - 1), value, comp);
+			end = begin + (i - 1);
+			break;
 		}
 	} 
-	
-	return std::upper_bound(begin + (i / 2), end, value, comp);
+	begin += (i / 2);
+	for(index_t len = end - begin; len > 0;)
+	{
+		i = len / 2;
+		if (comp(value, begin[i]))
+			len = i;
+		else
+		{
+			begin += (i + 1);
+			len -= (i + 1);
+		}
+	}
+	return begin;
 }
 
 template <class LeftIt, class RightIt, class DestIt, class Comp>
