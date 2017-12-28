@@ -186,20 +186,6 @@ struct TimSort
 		stack_buffer.template remove_run<2>();
 	}
 
-	inline void merge_top_3_()
-	{
-		if(run_len<2>() < run_len<0>()) 
-		{
-			merge_runs(start + get_offset<3>(),
-				   start + get_offset<2>(),
-				   start + get_offset<1>());
-			stack_buffer.template remove_run<2>();
-		}
-		else
-			merge_BC();
-	}
-	
-
 	template <std::size_t I>
 	inline auto get_offset() const
 	{
@@ -245,32 +231,32 @@ struct TimSort
 
 	inline void merge_runs(It begin, It mid, It end)
 	{
-		// begin = std::upper_bound(begin, mid, *mid, comp);
-		// end = std::lower_bound(mid, end, mid[-1], comp);
 		begin = gallop_upper_bound(begin, mid, *mid, comp);
 		end = gallop_upper_bound(std::make_reverse_iterator(end), 
-				         std::make_reverse_iterator(mid), 
-				         mid[-1], 
-				         [comp=this->comp](auto&& a, auto&& b){
-				            return comp(std::forward<decltype(b)>(b), std::forward<decltype(a)>(a));
-				         }).base();
-		
+					 std::make_reverse_iterator(mid), 
+					 mid[-1], 
+					 [comp=this->comp](auto&& a, auto&& b){
+					    return comp(std::forward<decltype(b)>(b), std::forward<decltype(a)>(a));
+					 }).base();
+		// begin = std::upper_bound(begin, mid, *mid, comp);
+		// end = std::lower_bound(mid, end, mid[-1], comp);
 		// TODO: remove this if ?
-		if(begin == mid or mid == end)
-			return;
-		else if((end - mid) > (mid - begin))
-			// merge from the left
-			do_merge(begin, mid, end, comp);
-		else 
-			// merge from the right
-			do_merge(std::make_reverse_iterator(end),
-				 std::make_reverse_iterator(mid),
-				 std::make_reverse_iterator(begin), 
-				 [comp=this->comp](auto&& a, auto&& b){ 
-					return comp(std::forward<decltype(b)>(b), 
-						    std::forward<decltype(a)>(a)); 
-				 }
-			);
+		if(COMPILER_LIKELY_(begin < mid or mid < end))
+		{
+			if((end - mid) > (mid - begin))
+				// merge from the left
+				do_merge(begin, mid, end, comp);
+			else 
+				// merge from the right
+				do_merge(std::make_reverse_iterator(end),
+					 std::make_reverse_iterator(mid),
+					 std::make_reverse_iterator(begin), 
+					 [comp=this->comp](auto&& a, auto&& b){ 
+						return comp(std::forward<decltype(b)>(b), 
+							    std::forward<decltype(a)>(a)); 
+					 }
+				);
+		}
 	}
 
 	template <class Iter, class Cmp>

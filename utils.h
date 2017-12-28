@@ -65,6 +65,37 @@ bool linear_search_mode(LeftIt& lbegin, LeftIt lend, RightIt& rbegin, RightIt re
 	return false;
 }
 
+template <class LeftIt, class RightIt, class DestIt, class Comp>
+bool linear_search_mode_new(LeftIt& lbegin, LeftIt lend, RightIt& rbegin, RightIt rend, DestIt& dest, Comp comp, std::ptrdiff_t min_gallop)
+{
+	for(std::ptrdiff_t lcount = 0, rcount = 0; ;)
+	{
+		if(comp(*rbegin, *lbegin))
+		{
+			*dest = std::move(*rbegin);
+			++rbegin;
+			++rcount;
+			lcount = 0;
+			if(rbegin == rend)
+				break;
+		}
+		else
+		{
+			// TODO: do while?
+			*dest = std::move(*lbegin);
+			++lbegin;
+			++lcount;
+			rcount = 0;
+		}
+		++dest;
+		if(rcount >= min_gallop or lcount >= min_gallop)
+			return false;
+	}
+	++dest;
+	move_or_memcpy(lbegin, lend, dest);
+	return true;
+}
+
 template <class It, class T, class Comp>
 inline It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
 {
@@ -73,12 +104,13 @@ inline It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
 	
 	for(const index_t stop = end - begin; i <= stop; i *= 2)
 	{ 
-		if(not comp(begin[i - 1], value))
+		if(comp(value, begin[i - 1]))
 		{
 			end = begin + (i - 1);
 			break;
 		}
-	} 
+	}
+	// hand-rolled upper bound.  
 	begin += (i / 2);
 	for(index_t len = end - begin; len > 0;)
 	{
@@ -94,49 +126,100 @@ inline It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
 	return begin;
 }
 
-template <class LeftIt, class RightIt, class DestIt, class Comp>
-bool gallop_search_mode(LeftIt& lbegin, LeftIt lend, RightIt& rbegin, RightIt rend, DestIt& dest, Comp comp, std::ptrdiff_t& min_gallop)
+template <class It, class T, class Comp>
+inline It gallop_lower_bound(It begin, It end, const T& value, Comp comp)
 {
-	for(std::ptrdiff_t g_dist = gallop_win_dist, i = 1, stop=1; g_dist >= std::ptrdiff_t(gallop_win_dist); )
-	{
-		min_gallop -= (min_gallop > 1);
-		// gallop through the right range
-		stop = rend - rbegin;
-		for(i = 1; i <= stop and comp(rbegin[i - 1], *lbegin); i *= 2) 
+	using index_t = typename std::iterator_traits<It>::difference_type;
+	index_t i = 1;
+	
+	for(const index_t stop = end - begin; i <= stop; i *= 2)
+	{ 
+		if(not comp(begin[i - 1], value))
 		{
-			// LOOP
+			end = begin + (i - 1);
+			break;
 		}
-		g_dist = --i;
-		if(i > 0)
-		{
-			stop = std::lower_bound(rbegin + (i / 2), rbegin + std::min(i, stop), *lbegin, comp) - rbegin;
-			dest = std::move(rbegin, rbegin + stop, dest);
-			rbegin += stop;
-			if(not (rbegin < rend))
-			{
-				std::move(lbegin, lend, dest);
-				return true;
-			}
-		}
-		// gallop through the left range
-		stop = lend - lbegin;
-		for(i = 2; (i <= stop) and (not comp(*rbegin, lbegin[i - 1])); i *= 2) 
-		{
-			// LOOP
-		}
-		--i;
-		g_dist = std::max(i, g_dist);
-		stop = std::upper_bound(lbegin + (i / 2), lbegin + std::min(i, stop), *rbegin, comp) - lbegin;
-		dest = std::move(lbegin, lbegin + stop, dest);
-		lbegin += stop;
-		if(not (lbegin < lend)) 
-			return true;
 	}
-	return false;
+	// hand-rolled lower bound.  
+	begin += (i / 2);
+	for(index_t len = end - begin; len > 0;)
+	{
+		i = len / 2;
+		if (not comp(begin[i], value))
+			len = i;
+		else
+		{
+			begin += (i + 1);
+			len -= (i + 1);
+		}
+	}
+	return begin;
 }
 
+
+template <class It, class T, class Comp>
+inline It my_upper_bound(It begin, It end, const T& value, Comp comp)
+{
+	using index_t = typename std::iterator_traits<It>::difference_type;
+	for(index_t len = end - begin; len > 0;)
+	{
+		const auto half = len / 2;
+		if(comp(value, begin[half]))
+			len = half;
+		else
+		{
+			begin += (half + 1);
+			len -= (half + 1);
+		}
+	}
+	return begin;
+}
+
+template <class It, class T, class Comp>
+inline It my_lower_bound(It begin, It end, const T& value, Comp comp)
+{
+	using index_t = typename std::iterator_traits<It>::difference_type;
+	for(index_t len = end - begin; len > 0;)
+	{
+		const auto half = len / 2;
+		if(not comp(value, begin[half]))	
+		{
+			begin += (half + 1);
+			len -= (half + 1);
+		}
+		else
+			len = half;
+	}
+	return begin;
+}
+
+template <class It, class T, class Comp>
+inline std::ptrdiff_t linear_upper_bound(It begin, std::ptrdiff_t len, const T& value, Comp comp)
+{
+	for(std::ptrdiff_t i = 0; i < len; ++i)
+	{
+		if(comp(value, begin[i]))
+			return i;
+	}
+	return len;
+}
+
+template <class It, class T, class Comp>
+inline std::ptrdiff_t linear_lower_bound(It begin, std::ptrdiff_t len, const T& value, Comp comp)
+{
+	for(std::ptrdiff_t i = 0; i < len; ++i)
+	{
+		if(not comp(begin[i], value))
+			return i;
+	}
+	return len;
+}
+
+
+
+
 template <class LeftIt, class RightIt, class DestIt, class Comp>
-std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp, std::ptrdiff_t min_gallop)
+std::size_t gallop_merge_ex_old(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp, std::ptrdiff_t min_gallop)
 {
 	// TODO: 
 	for(std::ptrdiff_t i=0, stop=0; ; ++min_gallop)
@@ -155,7 +238,8 @@ std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt 
 			{
 				// LOOP
 			}
-			g_dist = --i;
+			--i;
+			g_dist = i;
 			if(i > 0)
 			{
 				stop = std::lower_bound(rbegin + (i / 2), rbegin + std::min(i, stop), *lbegin, comp) - rbegin;
@@ -169,7 +253,7 @@ std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt 
 			}
 			// gallop through the left range
 			stop = lend - lbegin;
-			for(i = 2; (i <= stop) and (not comp(*rbegin, lbegin[i - 1])); i *= 2) 
+			for(i = 2; (i <= stop) and not comp(*rbegin, lbegin[i - 1]); i *= 2) 
 			{
 				// LOOP
 			}
@@ -187,6 +271,85 @@ std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt 
 	return min_gallop;
 }
 
+template <class LeftIt, class RightIt, class DestIt, class Comp>
+std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Comp comp, std::ptrdiff_t min_gallop)
+{
+	// TODO: 
+	for(std::ptrdiff_t i=0, stop=0; ;)
+	{
+		// LINEAR SEARCH MODE
+		for(std::ptrdiff_t lcount = 0, rcount = 0; ;)
+		{
+			if(comp(*rbegin, *lbegin))
+			{
+				*dest = std::move(*rbegin);
+				++dest;
+				++rbegin;
+				++rcount;
+				lcount = 0;
+				if(rcount >= min_gallop)
+					break;
+				else if(rbegin == rend)
+				{
+					move_or_memcpy(lbegin, lend, dest);
+					return min_gallop;
+				}
+			}
+			else
+			{
+				*dest = std::move(*lbegin);
+				++dest;
+				++lbegin;
+				++lcount;
+				rcount = 0;
+				if(lcount >= min_gallop)
+					break;
+				// don't need to check if we reached the end.  that will happen on the right-hand-side 
+			}
+		}
+		++min_gallop;
+		// GALLOP SEARCH MODE
+		for(std::ptrdiff_t g_dist = gallop_win_dist; g_dist >= std::ptrdiff_t(gallop_win_dist); )
+		{
+			min_gallop -= (min_gallop > 1);
+			// gallop through the left range
+			stop = lend - lbegin;
+			for(i = 1; (i <= stop) and not comp(*rbegin, lbegin[i - 1]); i *= 2) 
+			{
+				// LOOP
+			}
+			--i;
+			g_dist = i;
+			if(i > 0)
+			{
+				stop = std::upper_bound(lbegin + (i / 2), lbegin + std::min(i, stop), *rbegin, comp) - lbegin;
+				move_or_memcpy(lbegin, lbegin + stop, dest);
+				dest += stop;
+				lbegin += stop;
+				// don't need to check if we reached the end.  that will happen on the right-hand-side 
+			}
+			
+			stop = rend - rbegin;
+			for(i = 1; i <= stop and comp(rbegin[i - 1], *lbegin); i *= 2) 
+			{
+				// LOOP
+			}
+			i -= 1;
+			if(g_dist < i)
+				g_dist = i;
+			stop = std::lower_bound(rbegin + (i / 2), rbegin + std::min(i, stop), *lbegin, comp) - rbegin;
+			dest = std::move(rbegin, rbegin + stop, dest);
+			rbegin += stop;
+			if(not (rbegin < rend))
+			{
+				move_or_memcpy(lbegin, lend, dest);
+				return min_gallop;
+			}
+		}
+		++min_gallop;
+	}
+	COMPILER_UNREACHABLE_;
+}
 
 
 template <class It>
@@ -194,7 +357,7 @@ inline void rotate_right_1(It begin, It end)
 {
 	// heuristic for deciding whether to use a temporary + range-copy (move)
 	// if a type is smaller than a 'pointer-size-capacity' type like std::vector or std::string,
-	// then implement the rotate as a:
+	// then implement the rotate as:
 	//	 move-to-temporary -> std::move_backward -> move-from-temporary
 	// otherwise implement as a series of swaps.
 	// 
@@ -237,30 +400,3 @@ void partial_insertion_sort(It begin, It mid, It end, Comp comp)
 	}
 }
 
-
-
-template <class It, class Comp>
-It extend_and_reverse_descending_run(It begin, It mid, It end, Comp comp)
-{
-	if(mid == end)
-		return mid;
-	auto stop = mid + 1;
-	while(stop < end)
-	{
-		while(stop < end and comp(*stop, stop[-1]))
-		{
-			++stop;
-		}
-		mid = stop;
-		while(stop < end and (not (comp(*stop, stop[-1]) or comp(stop[-1], *stop))))
-		{
-			++stop;
-		}
-		if(stop - mid == 0)
-			return stop;
-		std::reverse(mid, stop);
-	}
-	std::reverse(begin, stop);
-	assert(std::is_sorted(begin, stop, comp));
-	return stop;
-}

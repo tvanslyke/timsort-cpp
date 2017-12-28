@@ -36,8 +36,8 @@
 
 
 #if defined __GNUC__
-	#define COMPILER_LIKELY_(x) __builtin_expect(x, 1)
-	#define COMPILER_UNLIKELY_(x) __builtin_expect(x, 0)
+	#define COMPILER_LIKELY_(x) __builtin_expect(x, true)
+	#define COMPILER_UNLIKELY_(x) __builtin_expect(x, false)
 
 #else
 	#define COMPILER_LIKELY_(x) 
