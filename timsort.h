@@ -197,24 +197,37 @@ struct TimSort
 	 */
 	It get_run(It begin, It end)
 	{
+		if(auto pos = count_run(begin, end, comp); pos - begin < minrun)
+		{
+			if(end - begin > minrun)
+				end = begin + minrun;
+			partial_insertion_sort(begin, pos, end, comp);
+			return end;
+		}
+		else
+			return pos;
+	}
+
+	It _get_run(It begin, It end)
+	{
 
 		// TODO: keep track of whether last two were ascending or descending for next run
 		// 	 when merging only do search if there has been at least one run that hada decent
 		// 	 run size
-		auto pos = std::is_sorted_until(begin, end, comp);
-		if(pos - begin < 2)
-		{
-			pos = std::adjacent_find(pos, end, 
-				[comp=this->comp](auto&& a, auto && b) { 
-					return not comp(std::forward<decltype(b)>(b), 
-						        std::forward<decltype(a)>(a)); 
-				}
-			);
-			pos += (pos < end);
-			std::reverse(begin, pos);
-			
-		}
-		
+		// auto pos = my_is_sorted_until<false>(begin, end, comp);
+		// if(pos - begin < 2)
+		// {
+		// 	// pos = std::adjacent_find(pos, end, 
+		// 	// 	[comp=this->comp](auto&& a, auto && b) { 
+		// 	// 		return not comp(std::forward<decltype(b)>(b), 
+		// 	// 			        std::forward<decltype(a)>(a)); 
+		// 	// 	}
+		// 	// );
+		// 	pos += (pos < end);
+		// 	pos = my_is_sorted_until<true>(pos, end, comp);
+		// 	std::reverse(begin, pos);
+		// }
+		auto pos = get_existing_run(begin, end, comp);
 		if(pos - begin < minrun)
 		{
 			if(end - begin > minrun)
@@ -227,7 +240,6 @@ struct TimSort
 			return pos;
 		}
 	}
-
 
 	inline void merge_runs(It begin, It mid, It end)
 	{

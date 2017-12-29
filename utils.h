@@ -287,13 +287,13 @@ std::size_t gallop_merge_ex(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt 
 				++rbegin;
 				++rcount;
 				lcount = 0;
-				if(rcount >= min_gallop)
-					break;
-				else if(rbegin == rend)
+				if(rbegin == rend)
 				{
 					move_or_memcpy(lbegin, lend, dest);
 					return min_gallop;
 				}
+				else if(rcount >= min_gallop)
+					break;
 			}
 			else
 			{
@@ -389,6 +389,59 @@ inline void rotate_right_1(It begin, It end)
 		}
 	}
 }
+
+template <class It, class Comp>
+inline It count_run(It begin, It end, Comp comp)
+{
+	if(COMPILER_UNLIKELY_(end - begin < 2))
+	{
+		begin = end;
+	}
+	else if(comp(begin[1], *begin))
+	{
+		auto save = begin;
+		for(begin += 2; begin < end; ++begin)
+		{
+			if(not comp(*begin, begin[-1]))
+				break;
+		}
+		std::reverse(save, begin);
+	}
+	else
+	{
+		for(begin += 2; begin < end; ++begin)
+		{
+			if(comp(*begin, begin[-1]))
+				break;
+		}
+	}
+	return begin;
+}
+
+
+template <class It, class Comp>
+inline It get_existing_run(It begin, It end, Comp comp)
+{
+	// contract: begin < end
+	using index_t = typename std::iterator_traits<It>::difference_type;
+	if(index_t len = end - begin; len < 2)
+		return end;
+	else
+	{
+		index_t i = 1;
+		for(; i < len; ++i)
+			if(comp(begin[i], begin[i - 1]))
+				break;
+		if(i > 1)
+			return begin + i;
+		for(++i; i < len; ++i)
+			if(not comp(begin[i], begin[i - 1]))
+				break;
+		std::reverse(begin, begin + i);
+		return begin + i;
+	}
+}
+
 
 template <class It, class Comp>
 void partial_insertion_sort(It begin, It mid, It end, Comp comp)
