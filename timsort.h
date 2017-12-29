@@ -91,46 +91,54 @@ struct TimSort
 		stack_buffer{},
 		heap_buffer{},
 		start(begin_it), 
+		stop(end_it),
+		position(begin_it),
 		comp(std::move(comp_func)), 
 		minrun(compute_minrun(end_it - begin_it)),
 		min_gallop(default_min_gallop)
 	{
 		try_get_cached_heap_buffer(heap_buffer);
 		COMPILER_ASSUME_(minrun > 31 and minrun < 65);
-		fill_run_stack(end_it);
+		fill_run_stack();
 		collapse_run_stack();
 		try_cache_heap_buffer(heap_buffer);
 	}
 	
 	
-	inline void fill_run_stack(It end)
+	inline void fill_run_stack()
 	{
-		auto pos = push_next_run(start, end);
-		if(not (pos < end))
+		push_next_run();
+		if(not (position < stop))
 			return;
-		pos = push_next_run(pos, end);
-		while(pos < end)
+		push_next_run();
+		while(position < stop)
 		{
 			resolve_invariants();
-			pos = push_next_run(pos, end);
+			push_next_run();
 		}
 	}
 	
 	inline void collapse_run_stack()
 	{
-		// resolve_invariants();
-		// std::size_t bottom_run_len = stack_buffer.get_bottom_run_size();
-		// heap_buffer.reserve(std::min(bottom_run_len, total_length - bottom_run_len));
-		
 		for(auto count = stack_buffer.run_count(); count > 1; --count)
+		{
 			merge_BC();
+		}
 	}
 
-	inline It push_next_run(It pos, It end)
+	inline void push_next_run()
 	{
-		pos = get_run(pos, end);
-		stack_buffer.push(pos - start);
-		return pos;
+		if(auto run_end = count_run(position, stop, comp); run_end - position < minrun)
+		{
+			auto limit = stop;
+			if(stop - position > minrun)
+				limit = position + minrun;
+			partial_insertion_sort(position, run_end, limit, comp);
+			position = limit;
+		}
+		else
+			position = run_end;
+		stack_buffer.push(position - start);
 	}
 
 	/*
@@ -170,6 +178,12 @@ struct TimSort
 
 	/* RUN STACK STUFF */
 
+	inline void merge_BC_fast() 
+	{
+		merge_runs(start + get_offset<2>(),
+			   start + get_offset<1>(),
+			   stop);
+	}
 
 	inline void merge_BC() 
 	{
@@ -178,6 +192,7 @@ struct TimSort
 			   start + get_offset<0>());
 		stack_buffer.template remove_run<1>();
 	}
+	
 	inline void merge_AB()
 	{
 		merge_runs(start + get_offset<3>(),
@@ -195,17 +210,18 @@ struct TimSort
 	/*
 	 * MERGE/SORT IMPL STUFF
 	 */
-	It get_run(It begin, It end)
+	It get_run() const
 	{
-		if(auto pos = count_run(begin, end, comp); pos - begin < minrun)
+		if(auto run_end = count_run(position, stop, comp); run_end - position < minrun)
 		{
-			if(end - begin > minrun)
-				end = begin + minrun;
-			partial_insertion_sort(begin, pos, end, comp);
-			return end;
+			auto limit = stop;
+			if(stop - position > minrun)
+				limit = position + minrun;
+			partial_insertion_sort(position, run_end, limit, comp);
+			return limit;
 		}
 		else
-			return pos;
+			return run_end;
 	}
 
 	It _get_run(It begin, It end)
@@ -241,7 +257,7 @@ struct TimSort
 		}
 	}
 
-	inline void merge_runs(It begin, It mid, It end)
+	inline void merge_runs(It begin, It mid, It end) 
 	{
 		begin = gallop_upper_bound(begin, mid, *mid, comp);
 		end = gallop_upper_bound(std::make_reverse_iterator(end), 
@@ -334,6 +350,8 @@ struct TimSort
 	timsort_stack_buffer<SizeType, value_type, extra_stack_max_bytes / sizeof(value_type)> stack_buffer; 
 	std::vector<value_type> heap_buffer;
 	const It start;
+	const It stop;
+	It position;
 	Comp comp;
 
 	// TODO:  See if passing minrun up the call stack is faster than having it as a member variable
