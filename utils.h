@@ -6,11 +6,9 @@
 #include "compiler.h"
 #include "memcpy_algos.h"
 #include <cassert>
-
+#include "iter.h"
 
 inline constexpr const std::size_t gallop_win_dist = 7;
-
-
 
 
 template <class LeftIt, class RightIt, class DestIt, class Comp>
@@ -99,7 +97,7 @@ bool linear_search_mode_new(LeftIt& lbegin, LeftIt lend, RightIt& rbegin, RightI
 template <class It, class T, class Comp>
 inline It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
 {
-	using index_t = typename std::iterator_traits<It>::difference_type;
+	using index_t = iterator_difference_type_t<It>;
 	index_t i = 1;
 	
 	for(const index_t stop = end - begin; i <= stop; i *= 2)
@@ -129,7 +127,7 @@ inline It gallop_upper_bound(It begin, It end, const T& value, Comp comp)
 template <class It, class T, class Comp>
 inline It gallop_lower_bound(It begin, It end, const T& value, Comp comp)
 {
-	using index_t = typename std::iterator_traits<It>::difference_type;
+	using index_t = iterator_difference_type_t<It>;
 	index_t i = 1;
 	
 	for(const index_t stop = end - begin; i <= stop; i *= 2)
@@ -160,7 +158,7 @@ inline It gallop_lower_bound(It begin, It end, const T& value, Comp comp)
 template <class It, class T, class Comp>
 inline It my_upper_bound(It begin, It end, const T& value, Comp comp)
 {
-	using index_t = typename std::iterator_traits<It>::difference_type;
+	using index_t = iterator_difference_type_t<It>;
 	for(index_t len = end - begin; len > 0;)
 	{
 		const auto half = len / 2;
@@ -178,7 +176,7 @@ inline It my_upper_bound(It begin, It end, const T& value, Comp comp)
 template <class It, class T, class Comp>
 inline It my_lower_bound(It begin, It end, const T& value, Comp comp)
 {
-	using index_t = typename std::iterator_traits<It>::difference_type;
+	using index_t = iterator_difference_type_t<It>;
 	for(index_t len = end - begin; len > 0;)
 	{
 		const auto half = len / 2;
@@ -366,7 +364,7 @@ inline void rotate_right_1(It begin, It end)
 	// benchmarking across a number of different cases shows that this usually wins over 
 	// a call to std::rotate() or using a value like '64' (likely cache line size)
 	constexpr std::size_t upper_limit = 3 * std::max(sizeof(void*), sizeof(std::size_t));
-	using value_type = typename std::iterator_traits<It>::value_type;
+	using value_type = iterator_value_type_t<It>;
 	if constexpr(sizeof(value_type) < upper_limit)
 	{
 		// for small types, implement using a temporary.
@@ -423,7 +421,7 @@ template <class It, class Comp>
 inline It get_existing_run(It begin, It end, Comp comp)
 {
 	// contract: begin < end
-	using index_t = typename std::iterator_traits<It>::difference_type;
+	using index_t = iterator_difference_type_t<It>;
 	if(index_t len = end - begin; len < 2)
 		return end;
 	else

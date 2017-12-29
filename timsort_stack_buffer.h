@@ -81,7 +81,7 @@ struct timsort_stack_buffer
 	
 	inline std::size_t bytes_consumed_by_merge_buffer() const noexcept
 	{
-		return num_in_merge_buffer * sizeof(ValueType);
+		return std::size_t(num_in_merge_buffer) * sizeof(ValueType);
 	}
 	static inline constexpr std::size_t total_bytes_in_buffer() noexcept
 	{
@@ -89,12 +89,10 @@ struct timsort_stack_buffer
 	}
 	inline bool need_to_trim_merge_buffer() const noexcept
 	{
-		if constexpr(not trivial_destructor)
-			return (num_in_merge_buffer > 0) and 
-				(total_bytes_in_buffer() - bytes_consumed_by_merge_buffer()) < bytes_consumed_by_one_more_run();
-		else
-			return false;
+		return (std::size_t(num_in_merge_buffer) > 0) and 
+			(total_bytes_in_buffer() - bytes_consumed_by_merge_buffer()) < bytes_consumed_by_one_more_run();
 	}
+	
 	inline void destroy_enough_to_fit_one_more_run() noexcept
 	{
 		if constexpr(sizeof(ValueType) >= sizeof(IntType))
@@ -104,14 +102,20 @@ struct timsort_stack_buffer
 		}
 		else
 		{
-			const std::size_t bytes_needed = bytes_consumed_by_one_more_run();
-			std::size_t used = bytes_consumed_by_merge_buffer();
-			while(bytes_needed > total_bytes_in_buffer() - used)
-			{
-				--num_in_merge_buffer;
-				std::destroy_at(merge_buffer_begin() + num_in_merge_buffer);
-				used -= sizeof(ValueType);
-			}
+			// const std::size_t bytes_needed = bytes_consumed_by_one_more_run();
+			// std::size_t used = bytes_consumed_by_merge_buffer();
+			// while(bytes_needed > total_bytes_in_buffer() - used)
+			// {
+			// 	--num_in_merge_buffer;
+			// 	std::destroy_at(merge_buffer_begin() + num_in_merge_buffer);
+			// 	used -= sizeof(ValueType);
+			// }
+			std::size_t overlap = 
+				(total_bytes_in_buffer() - bytes_consumed_by_one_more_run()) 
+				- bytes_consumed_by_merge_buffer();
+			overlap = overlap / sizeof(ValueType) + ((overlap % sizeof(ValueType)) > 0);
+			std::destroy(merge_buffer_end() - overlap, merge_buffer_end());
+			num_in_merge_buffer -= overlap;
 		}
 	}
 
@@ -124,15 +128,6 @@ struct timsort_stack_buffer
 		}
 	}
 	
-	inline void destroy_merge_buffer_top_half() noexcept(nothrow_destructor)
-	{
-		if constexpr(not trivial_destructor)
-		{
-			auto destroy_count = (num_in_merge_buffer + 1) / 2;
-			std::destroy(merge_buffer_end() - destroy_count, merge_buffer_end());
-			num_in_merge_buffer -= destroy_count;
-		}
-	}
 
 
 	/*
@@ -151,9 +146,9 @@ struct timsort_stack_buffer
 	{
 		
 		static_assert(std::is_same_v<std::decay_t<ValueType>, 
-					     std::decay_t<typename std::iterator_traits<It>::value_type>>, 
+					     std::decay_t<iterator_value_type_t<It>>>, 
 			      "If you see this, timsort() is broken.");
-		if constexpr(can_forward_memcpy_v<It>)
+		if constexpr (can_forward_memcpy_v<It>)
 		{
 			std::memcpy(buffer, get_memcpy_iterator(begin), (end - begin) * sizeof(ValueType));
 			return merge_buffer_begin();
@@ -163,20 +158,27 @@ struct timsort_stack_buffer
 			std::memcpy(buffer, get_memcpy_iterator(end - 1), (end - begin) * sizeof(ValueType));
 			return std::make_reverse_iterator(merge_buffer_begin() + (end - begin));
 		}
-		else if constexpr(trivial_destructor)
+		else if constexpr (trivial_destructor)
 		{
-			std::uninitialized_move(begin, end, merge_buffer_begin());
+			for(auto dest = merge_buffer_begin(); begin < end; ++begin, (void)++dest)
+				::new(static_cast<ValueType*>(std::addressof(*dest))) ValueType(std::move(*begin));
+			// uninitialized_move_wrapper(begin, end, merge_buffer_begin());
 			return merge_buffer_begin();
 		}
 		else
 		{
-			std::size_t len = end - begin;
-			if(len > num_in_merge_buffer)
+			
+			if(const auto len = end - begin; len > num_in_merge_buffer)
 			{
 				auto dest = merge_buffer_begin();
+				COMPILER_ASSUME_(num_in_merge_buffer >= 0);
 				dest = std::move(begin, begin + num_in_merge_buffer, dest);
-				std::uninitialized_move(begin + num_in_merge_buffer, end, dest);
-				num_in_merge_buffer = len;
+				begin += num_in_merge_buffer;
+				for(; begin < end; ++num_in_merge_buffer, (void)++dest, (void)++begin)
+					::new(static_cast<ValueType*>(std::addressof(*dest))) ValueType(std::move(*begin));
+				
+				// uninitialized_move_wrapper(begin + num_in_merge_buffer, end, dest);
+				// num_in_merge_buffer = len;
 			}
 			else
 			{
@@ -198,8 +200,11 @@ struct timsort_stack_buffer
 	inline void push(IntType runlen) noexcept(nothrow_destructor)
 	{
 		// TODO: assume(i > *(top + 1))
-		if(need_to_trim_merge_buffer())
-			destroy_enough_to_fit_one_more_run();
+		if constexpr(not trivial_destructor)
+		{
+			if(need_to_trim_merge_buffer())
+				destroy_enough_to_fit_one_more_run();
+		}
 		*top = runlen;
 		--top;
 	}
@@ -209,18 +214,9 @@ struct timsort_stack_buffer
 		++top;
 	}
 	
-	inline IntType stack_top() const noexcept
-	{
-		return top[1];
-	}
-
-	inline IntType* stack_top() noexcept
-	{
-		return top[1];
-	}
 
 	template <std::size_t I>
-	inline std::size_t get_offset() const noexcept
+	inline const IntType& get_offset() const noexcept
 	{
 		static_assert(I < 5);
 		// assert(offset_count() > I);
@@ -249,6 +245,7 @@ struct timsort_stack_buffer
 	{
 		return merge_ABC_case_1() or merge_ABC_case_2();
 	}
+
 	inline bool merge_AB() const noexcept
 	{
 		return get_offset<2>() - get_offset<3>() < get_offset<0>() - get_offset<1>();
@@ -310,7 +307,7 @@ struct timsort_stack_buffer
 	static constexpr const std::size_t required_alignment = alignof(std::aligned_union_t<sizeof(IntType), IntType, ValueType>);
 	alignas(required_alignment) IntType buffer[buffer_size];
 	IntType* top;
-	std::size_t num_in_merge_buffer;
+	std::conditional_t<trivial_destructor, const std::ptrdiff_t, std::ptrdiff_t> num_in_merge_buffer;
 };
 
 
