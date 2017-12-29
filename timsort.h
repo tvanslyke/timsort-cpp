@@ -107,7 +107,11 @@ struct TimSort
 	inline void collapse_run_stack()
 	{
 		for(auto count = stack_buffer.run_count(); count > 1; --count)
+		{
+			// if (count > 2)
+			// 	COMPILER_PREFETCH_W_(&(stack_buffer.template get_offset<3>()), 1);
 			merge_BC();
+		}
 	}
 
 	/* 

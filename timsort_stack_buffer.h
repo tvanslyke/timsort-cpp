@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cstring>
 #include "memcpy_algos.h"
-
+#include "compiler.h"
 
 
 static constexpr std::size_t div_by_log2phi(std::size_t num) noexcept
@@ -81,7 +81,7 @@ struct timsort_stack_buffer
 	
 	inline std::size_t bytes_consumed_by_merge_buffer() const noexcept
 	{
-		return std::size_t(num_in_merge_buffer) * sizeof(ValueType);
+		return num_in_merge_buffer * sizeof(ValueType);
 	}
 	static inline constexpr std::size_t total_bytes_in_buffer() noexcept
 	{
@@ -89,7 +89,7 @@ struct timsort_stack_buffer
 	}
 	inline bool need_to_trim_merge_buffer() const noexcept
 	{
-		return (std::size_t(num_in_merge_buffer) > 0) and 
+		return (num_in_merge_buffer > 0) and 
 			(total_bytes_in_buffer() - bytes_consumed_by_merge_buffer()) < bytes_consumed_by_one_more_run();
 	}
 	
@@ -102,14 +102,6 @@ struct timsort_stack_buffer
 		}
 		else
 		{
-			// const std::size_t bytes_needed = bytes_consumed_by_one_more_run();
-			// std::size_t used = bytes_consumed_by_merge_buffer();
-			// while(bytes_needed > total_bytes_in_buffer() - used)
-			// {
-			// 	--num_in_merge_buffer;
-			// 	std::destroy_at(merge_buffer_begin() + num_in_merge_buffer);
-			// 	used -= sizeof(ValueType);
-			// }
 			std::size_t overlap = 
 				(total_bytes_in_buffer() - bytes_consumed_by_one_more_run()) 
 				- bytes_consumed_by_merge_buffer();
@@ -167,8 +159,8 @@ struct timsort_stack_buffer
 		}
 		else
 		{
-			
-			if(const auto len = end - begin; len > num_in_merge_buffer)
+				
+			if(std::size_t(end - begin) > num_in_merge_buffer)
 			{
 				auto dest = merge_buffer_begin();
 				COMPILER_ASSUME_(num_in_merge_buffer >= 0);
@@ -187,6 +179,7 @@ struct timsort_stack_buffer
 			return merge_buffer_begin();
 		}
 	}
+
 
 	template <class It>
 	inline bool can_acquire_merge_buffer([[maybe_unused]] It begin, [[maybe_unused]] It end) const noexcept
@@ -302,12 +295,13 @@ struct timsort_stack_buffer
 	{
 		return buffer[buffer_size - 2];
 	}
+	
 
 	static constexpr const std::size_t buffer_size = (timsort_max_stack_size<std::size_t>() * sizeof(IntType) + ExtraValueTypeSlots * sizeof(ValueType)) / sizeof(IntType);
 	static constexpr const std::size_t required_alignment = alignof(std::aligned_union_t<sizeof(IntType), IntType, ValueType>);
 	alignas(required_alignment) IntType buffer[buffer_size];
 	IntType* top;
-	std::conditional_t<trivial_destructor, const std::ptrdiff_t, std::ptrdiff_t> num_in_merge_buffer;
+	std::conditional_t<trivial_destructor, const std::size_t, std::size_t> num_in_merge_buffer;
 };
 
 
