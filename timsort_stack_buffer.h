@@ -38,8 +38,7 @@ struct timsort_stack_buffer
 
 	timsort_stack_buffer():
 		buffer{},
-		top{std::make_reverse_iterator(buffer + buffer_size)},
-		bottom{std::make_reverse_iterator(buffer + buffer_size)},
+		top{buffer + (buffer_size - 1)},
 		num_in_merge_buffer{0}
 	{
 		push(0);
@@ -52,7 +51,7 @@ struct timsort_stack_buffer
 
 	inline std::size_t offset_count() const noexcept
 	{
-		return top - bottom;
+		return (buffer + (buffer_size - 1)) - top;
 	}
 
 	inline std::size_t run_count() const noexcept
@@ -202,38 +201,38 @@ struct timsort_stack_buffer
 		if(need_to_trim_merge_buffer())
 			destroy_enough_to_fit_one_more_run();
 		*top = runlen;
-		++top;
+		--top;
 	}
 
 	inline void pop() noexcept
 	{
-		--top;
+		++top;
 	}
 	
 	inline IntType stack_top() const noexcept
 	{
-		return top[-1];
+		return top[1];
 	}
 
 	inline IntType* stack_top() noexcept
 	{
-		return top[-1];
+		return top[1];
 	}
 
 	template <std::size_t I>
 	inline std::size_t get_offset() const noexcept
 	{
 		static_assert(I < 5);
-		assert(offset_count() > I);
-		return *(top - (I + 1));
+		// assert(offset_count() > I);
+		return top[I + 1];
 	}
 	
 	template <std::size_t I>
 	inline IntType& get_offset() noexcept
 	{
 		static_assert(I < 5);
-		assert(offset_count() > I);
-		return *(top - (I + 1));
+		// assert(offset_count() > I);
+		return top[I + 1];
 	}
 	
 	inline bool merge_ABC_case_1() const noexcept
@@ -304,30 +303,13 @@ struct timsort_stack_buffer
 
 	inline std::size_t get_bottom_run_size() const noexcept
 	{
-		return bottom[1];
+		return buffer[buffer_size - 2];
 	}
 
-	/// DEBUGGING
-	void print() const
-	{
-		std::copy(bottom, top, std::ostream_iterator<std::ptrdiff_t>(std::cerr, ", "));
-		std::cerr << std::endl;
-	}
-
-	void print_lens() const
-	{
-		std::vector<std::ptrdiff_t> v;
-		std::adjacent_difference(bottom, top, std::back_inserter(v));
-		std::copy(v.begin() + bool(v.size()), v.end(), std::ostream_iterator<std::ptrdiff_t>(std::cerr, ", "));
-		std::cerr << std::endl;
-	}
-	// TODO: add function to compute bytes needed after run stack is topped out
-	// TODO: IS THIS WRONG???  This calculates bytes.  should calculate quantity 
 	static constexpr const std::size_t buffer_size = (timsort_max_stack_size<std::size_t>() * sizeof(IntType) + ExtraValueTypeSlots * sizeof(ValueType)) / sizeof(IntType);
 	static constexpr const std::size_t required_alignment = alignof(std::aligned_union_t<sizeof(IntType), IntType, ValueType>);
 	alignas(required_alignment) IntType buffer[buffer_size];
-	std::reverse_iterator<IntType*> top;
-	std::reverse_iterator<IntType*> bottom;
+	IntType* top;
 	std::size_t num_in_merge_buffer;
 };
 
