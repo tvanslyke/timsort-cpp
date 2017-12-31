@@ -224,6 +224,11 @@ struct timsort_stack_buffer
 		return top[I + 1];
 	}
 	
+	inline const IntType& operator[](std::ptrdiff_t i) const noexcept
+	{
+		return top[i + 1];
+	}
+	
 	inline bool merge_ABC_case_1() const noexcept
 	{
 		return get_offset<2>() - get_offset<3>() <= get_offset<0>() - get_offset<2>();
@@ -295,7 +300,7 @@ struct timsort_stack_buffer
 	{
 		return buffer[buffer_size - 2];
 	}
-	
+		
 
 	static constexpr const std::size_t buffer_size = (timsort_max_stack_size<std::size_t>() * sizeof(IntType) + ExtraValueTypeSlots * sizeof(ValueType)) / sizeof(IntType);
 	static constexpr const std::size_t required_alignment = alignof(std::aligned_union_t<sizeof(IntType), IntType, ValueType>);

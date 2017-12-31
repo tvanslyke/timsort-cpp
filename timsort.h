@@ -34,15 +34,22 @@ namespace tim {
  * implementation was slightly, but measurably worse in the benchmarks
  * when the max minrun was 32 instead of 64.  
  */
-template <std::size_t SizeofType>
+
+template <class T>
+static constexpr std::size_t max_minrun()
+{
+	if constexpr(sizeof(T) > (sizeof(void*) * 8))
+		return 16;
+	else if constexpr(sizeof(T) > (sizeof(void*) * 4))
+		return 32;
+	else 
+		return 64;
+}
+
+template <class T>
 static constexpr std::size_t compute_minrun(std::size_t n)
 {
-	constexpr std::size_t sizeof_ptr = sizeof(void*);
-	constexpr std::size_t minrun_max = SizeofType > (sizeof_ptr * 8) ?
-						 16 : 
-						 SizeofType > (sizeof_ptr * 4) ?
-						 32 :
-						 64; 
+	constexpr std::size_t minrun_max = max_minrun<T>();
 	std::size_t r = 0;
 	while (n >= minrun_max) 
 	{
@@ -53,10 +60,21 @@ static constexpr std::size_t compute_minrun(std::size_t n)
 }
 
 
+// struct CheapComparisons{};
+// struct MinimizeStackUsage{};
+// struct Unstable{};
+// struct Synchronize{};
+// struct NoCacheHeapBuffer{};
+// struct ClearHeapBufferCache{};
+// template <std::size_t N>
+// struct StackReserve{};
 
 template <class SizeType, 
 	  class It,
-	  class Comp>
+	  class Comp,
+	  std::size_t ExtraStackBufferSlots = 0,
+	  bool Stable = true
+	  >
 struct TimSort
 {
 	using value_type = iterator_value_type_t<It>;
@@ -67,11 +85,10 @@ struct TimSort
 		stop(end_it),
 		position(begin_it),
 		comp(std::move(comp_func)), 
-		minrun(compute_minrun<sizeof(value_type)>(end_it - begin_it)),
+		minrun(compute_minrun<value_type>(end_it - begin_it)),
 		min_gallop(default_min_gallop)
 	{
 		try_get_cached_heap_buffer(heap_buffer);
-		// COMPILER_ASSUME_(minrun > 31 and minrun < 65);
 		fill_run_stack();
 		collapse_run_stack();
 		try_cache_heap_buffer(heap_buffer);
@@ -172,33 +189,22 @@ struct TimSort
 	 */
 	void resolve_invariants()
 	{
+		// Check all of the invariants in a loop while there are at least
+		// two runs.  
 		auto run_count = stack_buffer.run_count();
-		
-		// Check all of the invariants in a loop while the size of the 
-		// run stack permits.  It run_count >= 3, then we can't check
-		// invariant (1.1) because there are only three runs.
-		for(; run_count > 3; --run_count)
-		{
-			if(const bool abc = stack_buffer.merge_ABC(); abc and stack_buffer.merge_AB())
-				merge_AB();
-			else if(abc or stack_buffer.merge_BC())
+		do{
+			if(((run_count > 2) and stack_buffer.merge_ABC_case_1()) 
+			   or ((run_count > 3) and stack_buffer.merge_ABC_case_2()))
+				if(stack_buffer.merge_AB())
+					merge_AB();
+				else
+					merge_BC();
+			else if(stack_buffer.merge_BC())
 				merge_BC();
 			else
-				return;
-		}
-		// only three runs.  check invariant (1.1)
-		if((run_count > 2) and stack_buffer.merge_ABC_case_1())
-		{
-			if(stack_buffer.merge_AB())
-				merge_AB();
-			else
-				merge_BC();
+				break;
 			--run_count;
-		}
-
-		// only two or three runs.  check invariant (2)
-		if((run_count > 1) and stack_buffer.merge_BC())
-			merge_BC();
+		} while(run_count > 1);
 	}
 
 	/* RUN STACK STUFF */
@@ -310,9 +316,9 @@ struct TimSort
 		{
 			// allocate the merge buffer on the stack
 			auto stack_mem = stack_buffer.move_to_merge_buffer(begin, mid);
-			min_gallop = gallop_merge_ex(stack_mem, stack_mem + (mid - begin), 
+			gallop_merge(stack_mem, stack_mem + (mid - begin), 
 						     mid, end, 
-						     begin, cmp, min_gallop);
+						     begin, cmp);
 		}
 		else
 		{
@@ -331,20 +337,99 @@ struct TimSort
 				{
 					heap_buffer.assign(std::make_move_iterator(begin), std::make_move_iterator(mid));
 				}
-				min_gallop = gallop_merge_ex(heap_buffer.begin(), heap_buffer.end(),
+				gallop_merge(heap_buffer.begin(), heap_buffer.end(),
 							     mid, end, 
-							     begin, cmp, min_gallop);
+							     begin, cmp);
 			}
 			else
 			{
 				heap_buffer.resize(mid - begin);
 				std::memcpy(heap_buffer.data(), get_memcpy_iterator(mid - 1), (mid - begin) * sizeof(value_type));
-				min_gallop = gallop_merge_ex(heap_buffer.rbegin(), heap_buffer.rend(),
+				gallop_merge(heap_buffer.rbegin(), heap_buffer.rend(),
 							     mid, end, 
-							     begin, cmp, min_gallop);
+							     begin, cmp);
 			}
 		}
 	}
+
+	template <class LeftIt, class RightIt, class DestIt, class Cmp>
+	void gallop_merge(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Cmp cmp)
+	{
+		for(std::size_t i=0, lcount=0, rcount=0; ;)
+		{
+			// LINEAR SEARCH MODE
+			for(lcount=0, rcount=0;;)
+			{
+				if(cmp(*rbegin, *lbegin))
+				{
+					*dest = std::move(*rbegin);
+					++dest;
+					++rbegin;
+					++rcount;
+					lcount = 0;
+					if(rbegin == rend)
+					{
+						move_or_memcpy(lbegin, lend, dest);
+						return;
+					}
+					else if(rcount >= min_gallop)
+						goto gallop_right;
+				}
+				else
+				{
+				    //linear_left:
+					*dest = std::move(*lbegin);
+					++dest;
+					++lbegin;
+					++lcount;
+					rcount = 0;
+					if(lcount >= min_gallop) 
+						goto gallop_left;
+					// don't need to check if we reached the end.  that will happen on the right-hand-side 
+				}
+			}
+			COMPILER_UNREACHABLE_;
+			// GALLOP SEARCH MODE
+			for(; lcount >= gallop_win_dist or rcount >= gallop_win_dist;)
+			{
+				min_gallop -= (min_gallop > 1);
+				// gallop through the left range
+			    gallop_left:
+				lcount = lend - lbegin;
+				for(i = 1; (i <= lcount) and not cmp(*rbegin, lbegin[i - 1]); i *= 2) 
+				{
+					
+				}
+				if(lcount >= i)
+					lcount = i - 1;
+				lcount = std::upper_bound(lbegin + (i / 2), lbegin + lcount, *rbegin, cmp) - lbegin;
+				move_or_memcpy(lbegin, lbegin + lcount, dest);
+				dest += lcount;
+				lbegin += lcount;
+				// don't need to check if we reached the end.  that will happen on the right-hand-side 
+			    gallop_right:	
+				rcount = rend - rbegin;
+				for(i = 1; i <= rcount and cmp(rbegin[i - 1], *lbegin); i *= 2) 
+				{
+					
+				}
+				if(rcount >= i)
+					rcount = i - 1;
+				rcount = std::lower_bound(rbegin + (i / 2), rbegin + rcount, *lbegin, cmp) - rbegin;
+				dest = std::move(rbegin, rbegin + rcount, dest);
+				rbegin += rcount;
+				if(not (rbegin < rend))
+				{
+					move_or_memcpy(lbegin, lend, dest);
+					return;
+				}
+			}
+			++min_gallop;
+		}
+		COMPILER_UNREACHABLE_;
+	}
+
+
 	
 	static void try_get_cached_heap_buffer(std::vector<value_type>& vec)
 	{
@@ -364,8 +449,7 @@ struct TimSort
 		}
 	};
 
-	static constexpr const std::size_t extra_stack_max_bytes = sizeof(void*) * 0;
-	timsort_stack_buffer<SizeType, value_type, extra_stack_max_bytes / sizeof(value_type)> stack_buffer; 
+	timsort_stack_buffer<SizeType, value_type, ExtraStackBufferSlots> stack_buffer; 
 	std::vector<value_type> heap_buffer;
 	const It start;
 	const It stop;
@@ -381,21 +465,38 @@ struct TimSort
 
 template <class S, 
 	  class It,
-	  class C>
-std::vector<typename TimSort<S, It, C>::value_type> TimSort<S, It, C>::heap_buffer_cache{};
+	  class C,
+	  std::size_t N>
+std::vector<typename TimSort<S, It, C, N>::value_type> TimSort<S, It, C, N>::heap_buffer_cache{};
 
 template <class S, 
 	  class It,
-	  class C>
-std::mutex TimSort<S, It, C>::heap_buffer_cache_mutex{};
+	  class C, 
+	  std::size_t N>
+std::mutex TimSort<S, It, C, N>::heap_buffer_cache_mutex{};
 
+namespace hint {
 
-template <class It, class Comp, class ... Tags>
-static inline void _timsort(It begin, It end, Comp comp, Tags ... tags)
+struct CheapComparisons{};
+struct MinimizeStackUsage{};
+struct Unstable{};
+struct Synchronize{};
+struct NoCacheHeapBuffer{};
+struct ClearHeapBufferCache{};
+template <std::size_t N>
+struct StackReserve{
+	static constexpr const std::size_t value = N;
+};
+
+} /* namespace hint */
+
+template <class It, class Comp, class StackReserveTag = hint::StackReserve<0>>
+static inline void _timsort(It begin, It end, Comp comp, [[maybe_unused]] StackReserveTag stack_reserve = StackReserveTag{})
 {
+	using value_type = iterator_value_type_t<It>;
 	std::size_t len = end - begin;
-	if(len > 64)
-		TimSort<std::size_t, It, Comp>(begin, end, comp);
+	if(len > (max_minrun<value_type>()))
+		TimSort<std::size_t, It, Comp, StackReserveTag::value>(begin, end, comp);
 	else
 		partial_insertion_sort(begin, begin, end, comp);
 }
