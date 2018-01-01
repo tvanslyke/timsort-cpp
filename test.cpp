@@ -29,6 +29,27 @@ void test_contiguous_iterator() // dummy function
 }
 
 
+template <class It, class Cmp, class EqualTo>
+void test_unstable_sort(It data_begin, It data_end, Cmp cmp, EqualTo equal_to)
+{
+	using value_t = typename std::iterator_traits<It>::value_type;
+	std::vector<value_t> data_copy(data_begin, data_end);
+	
+	// under test
+	unstable_timsort(data_begin, data_end, cmp);
+
+	// test that the sort did its job
+	bool sorted = std::is_sorted(data_begin, data_end, cmp);
+	BOOST_TEST_REQUIRE(sorted, "Resultant range is NOT sorted with respect to the given comparator.");
+	
+
+	// if not, ensure the resultant range is a permutation of the original.
+	// if this fails, the sort is probably overwriting data it shouldn't be
+	bool perm = std::is_permutation(data_begin, data_end, data_copy.begin(), data_copy.end(), equal_to);
+	BOOST_TEST_REQUIRE(perm , "Resultant range is not a permutation of the original data.  " 
+				       "The sort is not value-safe."
+	);
+}
 
 template <class It, class Cmp, class EqualTo>
 void test_stable_sort(It data_begin, It data_end, Cmp cmp, EqualTo equal_to = std::equal_to<>{})
@@ -110,13 +131,7 @@ void int_test(const Params & params)
 		data.resize(size);
 		random_ints(data.begin(), data.end(), minm, maxm);
 		test_stable_sort(data.begin(), data.end(), cmp, eq);
-	}
-	for(auto size: lengths)
-	{
-		data.resize(size);
-		std::iota(data.begin(), data.end(), 0);
-		std::shuffle(data.begin(), data.end(), mt);
-		test_stable_sort(data.begin(), data.end(), cmp, eq);
+		test_unstable_sort(data.begin(), data.end(), cmp, eq);
 	}
 }
 
@@ -139,14 +154,17 @@ void str_test(const Params & params)
 		data.resize(size);
 		random_strs(data.begin(), data.end(), minlen, maxlen, minm, maxm);
 		test_stable_sort(data.begin(), data.end(), cmp, eq);
+		test_unstable_sort(data.begin(), data.end(), cmp, eq);
 		// sorted ascending
 		random_strs(data.begin(), data.end(), minlen, maxlen, minm, maxm);
 		std::sort(data.begin(), data.end(), std::less<>());
 		test_stable_sort(data.begin(), data.end(), cmp, eq);
+		test_unstable_sort(data.begin(), data.end(), cmp, eq);
 		// sorted descending
 		random_strs(data.begin(), data.end(), minlen, maxlen, minm, maxm);
 		std::sort(data.begin(), data.end(), std::greater<>());
 		test_stable_sort(data.begin(), data.end(), cmp, eq);
+		test_unstable_sort(data.begin(), data.end(), cmp, eq);
 	}
 }
 

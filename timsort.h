@@ -137,13 +137,13 @@ struct TimSort
 	 */
 	void push_next_run()
 	{
-		if(auto run_end = count_run(position, stop, comp); 
+		if(auto run_end = count_run<Stable>(position, stop, comp); 
 			run_end - position < minrun)
 		{
 			auto limit = stop;
 			if(stop - position > minrun)
 				limit = position + minrun;
-			partial_insertion_sort(position, run_end, limit, comp);
+			finish_insertion_sort(position, run_end, limit, comp);
 			position = limit;
 		}
 		else
@@ -289,6 +289,7 @@ struct TimSort
 					 std::make_reverse_iterator(mid),
 					 std::make_reverse_iterator(begin), 
 					 [comp=this->comp](auto&& a, auto&& b){ 
+						// reverse the comparator
 						return comp(std::forward<decltype(b)>(b), 
 							    std::forward<decltype(a)>(a)); 
 					 }
@@ -351,17 +352,44 @@ struct TimSort
 			}
 		}
 	}
-
+	
+	/**
+	 * @brief Implementation of the merge routine.
+	 * @param lbegin  Iterator to the begining of the left range.
+	 * @param lend    Iterator to the end of the left range.
+	 * @param rbegin  Iterator to the begining of the right range.
+	 * @param rend    Iterator to the end of the right range.
+	 * @param cmp     Comparator.  Either this->comp or a lambda reversing
+	 *	  	  the direction of this->comp.
+	 * 
+	 * This merge rountine has been fine-tuned to take advantage of the 
+	 * the preconditions imposed by the other components of this timsort
+	 * implementation.  This is not a general-purpose merge routine and
+	 * it should not be used outside of this implementation.
+	 * 
+	 * Most of the logic of this merge routine is implemented inline, and 
+	 * questionable constructs (such as gotos) are used where benchmarking
+	 * has shown that they speed up the routine. The code isn't pretty, 
+	 * but it's damn fast.
+	 * 
+	 * requires:
+	 * 	[lbegin, lend) does not overlap with [rbegin, rend)
+	 *	lend - lbegin > 0 and rend - rbegin > 0
+	 *      cmp(*rbegin, *lbegin)
+	 *      cmp(rend[-1], lend[-1]) 
+	 */ 
 	template <class LeftIt, class RightIt, class DestIt, class Cmp>
 	void gallop_merge(LeftIt lbegin, LeftIt lend, RightIt rbegin, RightIt rend, DestIt dest, Cmp cmp)
 	{
-		for(std::size_t i=0, lcount=0, rcount=0; ;)
+		for(std::size_t i=0, lcount=0, rcount=0;;)
 		{
 			// LINEAR SEARCH MODE
-			for(lcount=0, rcount=0;;)
+			// do a naive merge until evidence shows that galloping may be faster.
+			for(lcount=(i > 0), rcount=0, i=0;;)
 			{
 				if(cmp(*rbegin, *lbegin))
 				{
+					// move from the right-hand-side
 					*dest = std::move(*rbegin);
 					++dest;
 					++rbegin;
@@ -373,18 +401,24 @@ struct TimSort
 						return;
 					}
 					else if(rcount >= min_gallop)
+					{
+						// continue this run in galloping mode
 						goto gallop_right;
+					}
 				}
 				else
 				{
-				    //linear_left:
+					// move from the left-hand side
 					*dest = std::move(*lbegin);
 					++dest;
 					++lbegin;
 					++lcount;
 					rcount = 0;
 					if(lcount >= min_gallop) 
+					{
+						// continue this run in galloping mode
 						goto gallop_left;
+					}
 					// don't need to check if we reached the end.  that will happen on the right-hand-side 
 				}
 			}
@@ -392,30 +426,45 @@ struct TimSort
 			// GALLOP SEARCH MODE
 			for(; lcount >= gallop_win_dist or rcount >= gallop_win_dist;)
 			{
+				// decrement min_gallop every time we continue the gallop loop
 				min_gallop -= (min_gallop > 1);
-				// gallop through the left range
+				// we already know the result of the first comparison, so set i to 1 and skip it
+				i = 1;
 			    gallop_left:
+				// gallop through the left range
 				lcount = lend - lbegin;
-				for(i = 1; (i <= lcount) and not cmp(*rbegin, lbegin[i - 1]); i *= 2) 
-				{
-					
-				}
-				if(lcount >= i)
-					lcount = i - 1;
+				for(; (i < lcount) and not cmp(*rbegin, lbegin[i]); i = 2 * i + 1) { /* LOOP */ }
+				if(lcount > i)
+					lcount = i;
+				// do a binary search in the narrowed-down region
 				lcount = std::upper_bound(lbegin + (i / 2), lbegin + lcount, *rbegin, cmp) - lbegin;
 				move_or_memcpy(lbegin, lbegin + lcount, dest);
 				dest += lcount;
 				lbegin += lcount;
 				// don't need to check if we reached the end.  that will happen on the right-hand-side 
+				// we already know the result of the first comparison, so set i to 1 and skip it
+				i = 1;
 			    gallop_right:	
+				// gallop through the right range
 				rcount = rend - rbegin;
-				for(i = 1; i <= rcount and cmp(rbegin[i - 1], *lbegin); i *= 2) 
+				if constexpr(Stable)
 				{
-					
+					// STABLE
+					for(; i < rcount and cmp(rbegin[i], *lbegin); i = 2 * i + 1) {/* LOOP */}
+					if(rcount > i)
+						rcount = i;
+					// do a binary search in the narrowed-down region
+					rcount = std::lower_bound(rbegin + (i / 2), rbegin + rcount, *lbegin, cmp) - rbegin;
 				}
-				if(rcount >= i)
-					rcount = i - 1;
-				rcount = std::lower_bound(rbegin + (i / 2), rbegin + rcount, *lbegin, cmp) - rbegin;
+				else
+				{
+					// UNSTABLE
+					for(; i < rcount and not cmp(lbegin, rbegin[i]); i = 2 * i + 1) {/* LOOP */}
+					if(rcount > i)
+						rcount = i;
+					// do a binary search in the narrowed-down region
+					rcount = std::upper_bound(rbegin + (i / 2), rbegin + rcount, *lbegin, cmp) - rbegin;
+				}
 				dest = std::move(rbegin, rbegin + rcount, dest);
 				rbegin += rcount;
 				if(not (rbegin < rend))
@@ -424,6 +473,9 @@ struct TimSort
 					return;
 				}
 			}
+			*dest = std::move(*lbegin);
+			++dest;
+			++lbegin;
 			++min_gallop;
 		}
 		COMPILER_UNREACHABLE_;
@@ -448,16 +500,34 @@ struct TimSort
 			heap_buffer_cache.clear();
 		}
 	};
-
+	
+	/**
+	 * Stack-allocated stack data structure that holds location (end position) 
+	 * of each run bottom of the stack always holds 0.
+	 * Unused stack space is used for merge buffer when possible.
+	 */
 	timsort_stack_buffer<SizeType, value_type, ExtraStackBufferSlots> stack_buffer; 
+	/** Fallback heap-allocated array used for merge buffer. */
 	std::vector<value_type> heap_buffer;
+	/** 'begin' iterator to the range being sorted. */
 	const It start;
+	/** 'end' iterator to the range being sorted. */
 	const It stop;
+	/** 
+	 * Iterator to keep track of how far we've scanned into the range to be
+	 * sorted.  [start, position) contains already-found runs while 
+	 * [position, stop) is still untouched.  When position == end, the run stack
+	 * is collapsed.
+	 */
 	It position;
+	/** Comparator used to sort the range. */
 	Comp comp;
-
+	
+	/** minimum length of a run */
 	const std::ptrdiff_t minrun;
-	std::size_t min_gallop;
+	/** minimum number of consecutive */
+	std::size_t min_gallop = default_min_gallop;
+	
 	static std::vector<value_type> heap_buffer_cache;
 	static std::mutex heap_buffer_cache_mutex;
 	static constexpr const std::size_t default_min_gallop = gallop_win_dist;
@@ -466,14 +536,16 @@ struct TimSort
 template <class S, 
 	  class It,
 	  class C,
-	  std::size_t N>
-std::vector<typename TimSort<S, It, C, N>::value_type> TimSort<S, It, C, N>::heap_buffer_cache{};
+	  std::size_t N,
+	  bool B>
+std::vector<typename TimSort<S, It, C, N, B>::value_type> TimSort<S, It, C, N, B>::heap_buffer_cache{};
 
 template <class S, 
 	  class It,
 	  class C, 
-	  std::size_t N>
-std::mutex TimSort<S, It, C, N>::heap_buffer_cache_mutex{};
+	  std::size_t N, 
+	  bool B>
+std::mutex TimSort<S, It, C, N, B>::heap_buffer_cache_mutex{};
 
 namespace hint {
 
@@ -490,22 +562,22 @@ struct StackReserve{
 
 } /* namespace hint */
 
-template <class It, class Comp, class StackReserveTag = hint::StackReserve<0>>
+template <bool Stable, class It, class Comp, class StackReserveTag = hint::StackReserve<0>>
 static inline void _timsort(It begin, It end, Comp comp, [[maybe_unused]] StackReserveTag stack_reserve = StackReserveTag{})
 {
 	using value_type = iterator_value_type_t<It>;
 	std::size_t len = end - begin;
 	if(len > (max_minrun<value_type>()))
-		TimSort<std::size_t, It, Comp, StackReserveTag::value>(begin, end, comp);
+		TimSort<std::size_t, It, Comp, StackReserveTag::value, true>(begin, end, comp);
 	else
-		partial_insertion_sort(begin, begin, end, comp);
+		finish_insertion_sort(begin, begin, end, comp);
 }
  
 
 template <class It, class Comp>
 inline void timsort(It begin, It end, Comp comp)
 {
-	_timsort(begin, end, comp);
+	_timsort<true>(begin, end, comp);
 }
 
 
@@ -514,6 +586,25 @@ inline void timsort(It begin, It end)
 {
 	timsort(begin, end, std::less<>());
 }
+
+template <class It, class Comp>
+inline void _unstable_timsort(It begin, It end, Comp comp)
+{
+	_timsort<false>(begin, end, comp);
+}
+
+template <class It, class Comp>
+inline void unstable_timsort(It begin, It end, Comp comp)
+{
+	_unstable_timsort(begin, end, comp);
+}
+
+template <class It>
+inline void unstable_timsort(It begin, It end)
+{
+	unstable_timsort(begin, end, std::less<>());
+}
+
 
 } /* namespace tim */
 #endif /* TIMSORT_H */
