@@ -13,12 +13,9 @@
 # define COMPILER_UNREACHABLE_  			
 #endif 						
 
-
-
 #if defined __GNUC__
 # define GCC_ASSUME__(x) do{ if(not (x)) {__builtin_unreachable();} } while(false);
 #endif
-
 
 #if defined  _MSC_VER || defined __INTEL_COMPILER		
 # define COMPILER_ASSUME_(x) __assume(x);   		 			
@@ -34,7 +31,6 @@
 # define COMPILER_ASSUME_(x) 
 #endif 
 
-
 #if defined __GNUC__
 # define COMPILER_LIKELY_(x) __builtin_expect(x, true)
 # define COMPILER_UNLIKELY_(x) __builtin_expect(x, false)
@@ -42,7 +38,6 @@
 # define COMPILER_LIKELY_(x) 
 # define COMPILER_UNLIKELY_(x) 
 #endif
-
 
 #if defined __GNUC__
 # define COMPILER_PREFETCH_W_(x, loc) __builtin_prefetch(x, 1, loc)
@@ -53,6 +48,5 @@
 #else
 # define COMPILER_PREFETCH_(x, rw, loc) 
 #endif
-
 
 #endif /* COMPILER_H */
