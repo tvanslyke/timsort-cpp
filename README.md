@@ -9,13 +9,13 @@ This implementation of Timsort is written to be as close to Tim Peter's [origina
 * In CPython, all objects are pointers as thus all moves and swaps are quite cheap.  In C++, while we generally expect moves and swaps to be fairly inexpensive, objects can be much heavier than a pointer.
 * In CPython, all type information is determined at runtime.  In C++, we can use compile-time facilities to extract type information about our data and functions.
 * We implement the corrections described [here](http://www.envisage-project.eu/proving-android-java-and-python-sorting-algorithm-is-broken-and-how-to-fix-it/) (CPython's implementation does as well, however Tim Peters' [documentation](https://github.com/python/cpython/blob/master/Objects/listsort.txt) does not cover this)
-* This implementation makes more clever use of stack space than the CPython implementation.  A portion of the stack is used to store informatiabout pending merges.  In this implementation, unused portions of this stack space are used as a temporary buffer when performing merges.  In CPython, an extra buffer is allocated on the stack for this purpose.
-** More precisely, this implementation also allocates extra stack space, but the amount allocated is dependent on the size of the type and is allocated directly in pending-merge stack to utilize the unused space in the pending-merge slots.
-** Of course when doing this, we have to be careful with alignment, so we align the stack buffer to accomodate both the type being sorted as well as the integral type used to store the pending-merge information.
+* This implementation makes more clever use of stack space than the CPython implementation.  A portion of the stack is used to store information about pending merges.  In this implementation, unused portions of this stack space are used as a temporary buffer when performing merges.  In CPython, an extra buffer is allocated on the stack for this purpose.
+    * More precisely, this implementation also allocates extra stack space, but the amount allocated is dependent on the size of the type and is allocated directly in pending-merge stack to utilize the unused space in the pending-merge slots.
+    * Of course when doing this, we have to be careful with alignment, so we align the stack buffer to accomodate both the type being sorted as well as the integral type used to store the pending-merge information.
 * Using a small amount of template metaprogramming, we can, at compile-time, special case certain data to improve performance.
-** If the data being sorted is cheap to compare and cheap to move, we use a plain (as opposed to binary) insertion sort when forcing runs to 'minrun' length.
-** The maximum possible value of 'minrun' depends on the size of the type being sorted.  For example, if sorting somewhat heavy objects, minrun is no greater than 32, and for very heavy objects, 16 is the max.
-** As mentioned above, the amount of extra stack space allocated to be used as a merge buffer depends on the size of the type.  This helps minimizing heap usage for small types and keeps us from over-allocating on the stack for large types.
+    * If the data being sorted is cheap to compare and cheap to move, we use a plain (as opposed to binary) insertion sort when forcing runs to 'minrun' length.
+    * The maximum possible value of 'minrun' depends on the size of the type being sorted.  For example, if sorting somewhat heavy objects, minrun is no greater than 32, and for very heavy objects, 16 is the max.
+    * As mentioned above, the amount of extra stack space allocated to be used as a merge buffer depends on the size of the type.  This helps minimizing heap usage for small types and keeps us from over-allocating on the stack for large types.
 * One other optimization is the usage of compiler intrinsics when possible.  This can be switched off by defining `TIMSORT_NO_USE_COMPILER_INTRINSICS`.  
 
 Overall, the micro-optimizations implemented in this sort result in a sort that is faster than the libstdc++ and libc++ implementations of `std::stable_sort()`.
@@ -98,7 +98,7 @@ This implementation of Timsort is *nearly* a drop-in replacement for `std::stabl
 ### Exception Safety and Contract
 Aside from the above clarifications, `timsort()` has an identical contract to `std::stable_sort()`.
 * If an exception is thrown while by a swap, move, or comparison operation, some of the elements in the range may be left in a valid, but unspecified state.  That is, `timsort()` provides basic exception guarantee (no resources are leaked).
-** In the case where `std::bad_alloc` is thrown by when attempting to allocate memory for the merge routine, the all elements in the range are left in a valid state.  None of the elements will be in a "moved-from" state, and no data loss will have occured.  That is, the range is will simply be some valid permutation of the range that was initially passed to `timsort`.
+    * In the case where `std::bad_alloc` is thrown by when attempting to allocate memory for the merge routine, the all elements in the range are left in a valid state.  None of the elements will be in a "moved-from" state, and no data loss will have occured.  That is, the range is will simply be some valid permutation of the range that was initially passed to `timsort`.
 * If the range and values in it are sufficiently small, and no exceptions can be thrown by a swap, move, or comparison then `timsort()` throws no exceptions.
 One could transform `timsort()` into a fully-conforming `std::stable_sort()` will the following function:
 ```
