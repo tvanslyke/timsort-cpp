@@ -1,13 +1,7 @@
 #include <algorithm>
-#include <iterator>
-#include <utility>
-#include <cstdint>
-#include <iostream>
 #include "compiler.h"
 #include "memcpy_algos.h"
-#include <cassert>
 #include "iter.h"
-#include <limits>
 #include "minrun.h"
 
 
@@ -136,7 +130,6 @@ inline void rotate_left(It begin, It end)
 template <class It, class Comp>
 void finish_insertion_sort(It begin, It mid, It end, Comp comp)
 {
-
 	using value_type = iterator_value_type_t<It>;
 	if constexpr(std::is_scalar_v<value_type>
 		     and (   std::is_same_v<Comp, std::less<>> 

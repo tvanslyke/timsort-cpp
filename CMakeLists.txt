@@ -8,7 +8,7 @@ include_directories(./)
 target_include_directories(timsort INTERFACE include/tim)
 install(DIRECTORY include/tim INCLUDE DESTINATION include FILES_MATCHING PATTERN "*.h")
 
-# set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD 17)
 
 # unit tests
 add_executable(test-timsort EXCLUDE_FROM_ALL ./src/test.cpp)

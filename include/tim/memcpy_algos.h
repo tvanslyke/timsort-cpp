@@ -52,7 +52,9 @@ auto get_memcpy_iterator(It iter) noexcept
 	return GetMemcpyIterator<It>::get(iter);
 }
 
-
+/**
+ * Try to memcpy to the destination range, otherwise use std::move.
+ */
 template <class SrcIt, class DestIt>
 auto move_or_memcpy(SrcIt begin, SrcIt end, DestIt dest)
 {

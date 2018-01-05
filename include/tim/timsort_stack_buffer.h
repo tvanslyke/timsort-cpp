@@ -2,10 +2,7 @@
 #define TIMSORT_STACK_BUFFER_H
 #include <cstddef>
 #include <limits>
-#include <vector>
 #include <type_traits>
-#include <iostream>
-#include <cstring>
 #include "memcpy_algos.h"
 #include "compiler.h"
 #include "minrun.h"

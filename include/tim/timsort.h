@@ -1,18 +1,13 @@
 #ifndef TIMSORT_H
 #define TIMSORT_H
 
-#include <iostream>
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <utility>
 #include <functional>
 #include <vector>
 #include <limits>
-#include <numeric>
-#include <mutex>
-#include <exception>
 #include "utils.h"
 #include "timsort_stack_buffer.h"
 #include "minrun.h"
