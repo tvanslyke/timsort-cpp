@@ -55,8 +55,6 @@ pretty is darn awesome Timsort !
 
 ### Prerequisites
 
-What things you need to install the software and how to install them
-
 To use this implementation, a conforming C++17 compiler and STL implementation is required.  The test suite passes on both g++-7.2 and clang++-5.0 with both libstdc++-6.0 and libc++-6.0.
 
 The test suite uses Boost.test and the benchmarks use Google benchmark.  Neither are required for installation.
@@ -93,12 +91,12 @@ $ compare_bench.py ./benchmark-stdstable_sort ./timsort
 
 ## As a Replacement for `std::stable_sort()`
 This implementation of Timsort is *nearly* a drop-in replacement for `std::stable_sort()`, except for the following differences:
-* The standard specifies that `std::stable_sort` falls back to an O(Nlog(N)) merge algorithm if insufficient memory is available for merging.  This implementation throws a `std::bad_alloc` exception in this case.  This is a consequence of the fact that temporary buffers (when the stack cannot be used) is allocated via a `std::vector`.  Attempting to catch this exception and fall back to an inplace merge routine led to measurable pessimizations across all benchmarks.  If allocation fails and `std::bad_alloc` is thrown, the sorted range is valid but may contain a different permutation than it did before the call to `timsort()`.  Note that if `std::bad_alloc` is thrown by any other operation during the sort, some elements in the range may be in a valid, but unspecidied (moved-from) state.  
+* The standard specifies that `std::stable_sort` falls back to an O(Nlog(N)) merge algorithm if insufficient memory is available for merging.  This implementation throws a `std::bad_alloc` exception in this case.  This is a consequence of the fact that the temporary buffer (when the stack cannot be used) is allocated via a `std::vector`.  Attempting to catch this exception and fall back to an inplace merge routine led to measurable pessimizations across all benchmarks.  If allocation fails and `std::bad_alloc` is thrown, the sorted range is valid but may contain a different permutation than it did before the call to `timsort()`.  Note that if `std::bad_alloc` is thrown by any other operation during the sort, some elements in the range may be in a valid, but unspecidied (moved-from) state.  
 * The standard specifies that `std::stable_sort()` does at most Nlog(N) comparisons if enough memory can be allocated.  Most existing implementations of `std::stable_sort()` don't appear to follow this strictly, instead opting for O(Nlog(N)) asymptotic complexity (rather than as a hard limit).
 
 
 ### Exception Safety and Contract
-* Aside from the above clarifications, `timsort()` has an identical contract to `std::stable_sort()`.
+Aside from the above clarifications, `timsort()` has an identical contract to `std::stable_sort()`.
 * If an exception is thrown while by a swap, move, or comparison operation, some of the elements in the range may be left in a valid, but unspecified state.  That is, `timsort()` provides basic exception guarantee (no resources are leaked).
 ** In the case where `std::bad_alloc` is thrown by when attempting to allocate memory for the merge routine, the all elements in the range are left in a valid state.  None of the elements will be in a "moved-from" state, and no data loss will have occured.  That is, the range is will simply be some valid permutation of the range that was initially passed to `timsort`.
 * If the range and values in it are sufficiently small, and no exceptions can be thrown by a swap, move, or comparison then `timsort()` throws no exceptions.
@@ -128,21 +126,16 @@ Earlier versions of any of the above compilers or STL implementations may work a
 MSVC and ICC may work but have not been tested.
 
 ## Contributing
-
 Contributions and bug reports are welcome!
 
-
 ## Releases
-
 0.1.0 Initial release!
 
 ## Authors
-
 * **Timothy VanSlyke** - vanslyke.t@husky.neu.edu
 
 ## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License.
 
 ## Acknowledgments
 * Tim Peters for his awesome sorting algorithm!
