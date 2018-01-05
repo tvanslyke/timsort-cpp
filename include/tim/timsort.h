@@ -11,7 +11,7 @@
 #include "utils.h"
 #include "timsort_stack_buffer.h"
 #include "minrun.h"
-
+#include "compiler.h"
 
 namespace tim {
 
@@ -85,6 +85,9 @@ struct TimSort
 		if(auto run_end = count_run(position, stop, comp); 
 			run_end - position < minrun)
 		{
+			// insertion sort up to 'position + minrun' elements
+			// if there are enough elements remaining, otherwise
+			// just sort to the end
 			auto limit = stop;
 			if(stop - position > minrun)
 				limit = position + minrun;
@@ -506,7 +509,11 @@ struct TimSort
 	Comp comp;
 	/** Minimum length of a run */
 	const std::ptrdiff_t minrun;
-	/** Minimum number of consecutive */
+	/** 
+	 * Minimum number of consecutive elements for which one side of the 
+	 * merge must "win" in a row before switching from galloping mode to
+	 * linear mode.
+	 */
 	std::size_t min_gallop = default_min_gallop;
 	
 	static constexpr const std::size_t default_min_gallop = gallop_win_dist;
