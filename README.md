@@ -1,4 +1,6 @@
 # timsort-cpp
+[![Language](https://img.shields.io/badge/language-C++-blue.svg)](https://isocpp.org/) [![Standard](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 An optimized-for-C++ implementation of Tim Peters' Timsort sorting algorithm written in C++17.
 
 [Timsort](https://en.wikipedia.org/wiki/Timsort) is a practical, adaptive, and stable sorting algorithm originally developed for CPython by Tim Peters in 2002.  Timsort is blazingly fast for data which is already partially sorted and is performs well with datatypes where comparisons are relatively expexpensive to compute.  
