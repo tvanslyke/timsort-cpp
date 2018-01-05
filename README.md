@@ -64,7 +64,7 @@ The test suite uses Boost.test and the benchmarks use Google benchmark.  Neither
 ### Installing
 Clone the repo locally:
 ```
-git clone https://github.com/tvanslyke/timsort-cpp.git
+git clone https://github.com/tvanslyke/timsort.git
 cd timsort-cpp
 ```
 Run cmake and install
