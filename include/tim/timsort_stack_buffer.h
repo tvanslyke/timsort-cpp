@@ -411,32 +411,29 @@ struct timsort_stack_buffer
 		return reinterpret_cast<ValueType*>(buffer) + num_in_merge_buffer;
 	}
 	
-	static constexpr std::size_t next_highest_pow2(std::size_t num) noexcept
-	{
-		std::size_t pow2_val = 1;
-		for(std::size_t i = 1; i < num; i <<= 1)
-			pow2_val = i;
-		return pow2_val;
-	}
-		
 	static constexpr std::size_t extra_stack_alloc() noexcept
 	{
 		constexpr std::size_t minrun_bytes = max_minrun<ValueType>() * sizeof(ValueType);
 		constexpr std::size_t max_bytes = 128 * sizeof(void*);
+		// a merge only happens after at least two runs are on the 
+		// stack so subtract off 2 from the stack size to simulate
 		constexpr std::size_t stack_max_bytes = (timsort_max_stack_size<IntType>() - 2) * sizeof(IntType);
-		constexpr std::size_t num_minruns = stack_max_bytes / minrun_bytes;
-		constexpr std::size_t num_minruns_with_extra = (max_bytes + stack_max_bytes) / minrun_bytes;
 		
 		if constexpr(minrun_bytes < max_bytes)
 		{
 			std::size_t nbytes = minrun_bytes;
+			// see how many '(2**k) * minrun's we can fit on the stack
 			while(nbytes < max_bytes)
 				nbytes += nbytes;
 			return (nbytes / sizeof(IntType)) / 2;
 		}
 		else if constexpr(max_bytes + stack_max_bytes >= minrun_bytes and not (stack_max_bytes >= minrun_bytes))
+			// if adding 'max_bytes' bytes to the run stack allows fitting 
+			// a run of length 'minrun' on the stack, then go ahead and allocate
 			return max_bytes / sizeof(IntType);
 		else
+			// otherwise don't bother allocating extra, we'll probably be on the 
+			// heap the whole time anyway
 			return 0;
 
 	}

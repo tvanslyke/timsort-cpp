@@ -19,15 +19,6 @@ static const auto & census_data()
 	return data;
 }
 
-static_assert(is_contiguous_iterator_v<std::vector<int>::iterator>);
-static_assert(is_contiguous_iterator_v<std::vector<double>::iterator>);
-static_assert(is_contiguous_iterator_v<std::vector<double>::const_iterator>);
-static_assert(is_contiguous_iterator_v<std::string::iterator>);
-static_assert(is_contiguous_iterator_v<std::string::const_iterator>);
-static_assert(is_contiguous_iterator_v<int*>);
-static_assert(not is_contiguous_iterator_v<std::list<double>::iterator>);
-
-
 
 template <class It, class Cmp, class EqualTo>
 void test_stable_sort(It data_begin, It data_end, Cmp cmp, EqualTo equal_to = std::equal_to<>{})

@@ -211,6 +211,6 @@ BENCHMARK_TEMPLATE(BM_sort_census_naics_data, STATEDSCR);
 BENCHMARK_TEMPLATE(BM_sort_census_naics_data, NAICSDSCR);
 BENCHMARK_TEMPLATE(BM_sort_census_naics_data, entrsizedscr);
 
-BENCHMARK_MAIN();
+BENCHMARK_MAIN()
 
 

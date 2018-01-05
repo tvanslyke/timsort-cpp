@@ -1,0 +1,48 @@
+Comparing ./benchmark-stdstable_sort to ./benchmark-timsort
+Benchmark                                           Time             CPU      Time Old      Time New       CPU Old       CPU New
+--------------------------------------------------------------------------------------------------------------------------------
+BM_sort_random_uniform_ints/8                    -0.2202         -0.2201           237           185           239           186
+BM_sort_random_uniform_ints/64                   -0.3193         -0.3190          1593          1085          1595          1086
+BM_sort_random_uniform_ints/512                  -0.1031         -0.1030         15470         13874         15471         13877
+BM_sort_random_uniform_ints/4096                 -0.0471         -0.0470        162666        155009        162664        155016
+BM_sort_random_uniform_ints/32768                -0.0546         -0.0546       1668119       1576983       1668105       1576975
+BM_sort_random_uniform_ints/262144               +0.0020         +0.0020      15443365      15474947      15442698      15473818
+BM_sort_small_random_uniform_ints/8              -0.1989         -0.1982           233           187           235           188
+BM_sort_small_random_uniform_ints/64             -0.2500         -0.2499          1495          1122          1498          1123
+BM_sort_small_random_uniform_ints/512            -0.0255         -0.0255         11633         11336         11634         11338
+BM_sort_small_random_uniform_ints/4096           +0.0375         +0.0375         98195        101875         98193        101878
+BM_sort_small_random_uniform_ints/32768          +0.0053         +0.0053        818347        822692        818331        822659
+BM_sort_small_random_uniform_ints/262144         -0.0211         -0.0211       6915619       6769431       6915331       6769084
+BM_sort_random_strings<0, 8>/8                   -0.4893         -0.4888           696           355           697           357
+BM_sort_random_strings<0, 8>/64                  -0.3893         -0.3893          9077          5543          9079          5545
+BM_sort_random_strings<0, 8>/512                 -0.1963         -0.1962         96336         77422         96344         77440
+BM_sort_random_strings<0, 8>/4096                -0.1501         -0.1500        990782        842094        990740        842087
+BM_sort_random_strings<0, 8>/32768               -0.0307         -0.0307       8993905       8717881       8992982       8717255
+BM_sort_random_strings<0, 8>/262144              -0.0494         -0.0495      87790060      83449147      87787516      83446408
+BM_sort_random_strings<0, 64>/8                  -0.3070         -0.3061           579           401           581           403
+BM_sort_random_strings<0, 64>/64                 -0.0535         -0.0536          6859          6492          6860          6492
+BM_sort_random_strings<0, 64>/512                -0.0027         -0.0027         78996         78780         78992         78777
+BM_sort_random_strings<0, 64>/4096               -0.0927         -0.0927        982989        891884        982913        891773
+BM_sort_random_strings<0, 64>/32768              -0.1029         -0.1029      10787693       9677350      10787470       9677138
+BM_sort_random_strings<0, 64>/262144             -0.2433         -0.2432     162951785     123311637     162942786     123308003
+BM_sort_random_strings<32, 64>/8                 -0.2964         -0.2958           585           411           586           413
+BM_sort_random_strings<32, 64>/64                -0.0358         -0.0359          6873          6627          6875          6628
+BM_sort_random_strings<32, 64>/512               -0.0275         -0.0273         81921         79672         81899         79665
+BM_sort_random_strings<32, 64>/4096              -0.0399         -0.0399        966464        927902        966410        927833
+BM_sort_random_strings<32, 64>/32768             -0.0112         -0.0112      10205717      10091389      10205375      10090958
+BM_sort_random_strings<32, 64>/262144            -0.2465         -0.2465     172401153     129908003     172389998     129898408
+BM_sort_mnist_train_labels                       +0.0440         +0.0440       1253957       1309142       1253930       1309122
+BM_sort_census_naics_data<STATE>                 -0.9817         -0.9817      62401546       1141633      62397954       1141320
+BM_sort_census_naics_data<NAICS>                 -0.8101         -0.8101      68404466      12987509      68402429      12986781
+BM_sort_census_naics_data<ENTRSIZE>              -0.3464         -0.3464      68548037      44802010      68542913      44796479
+BM_sort_census_naics_data<FIRM>                  -0.0797         -0.0797      72273801      66514527      72268838      66511878
+BM_sort_census_naics_data<ESTB>                  -0.0551         -0.0551      71057376      67142727      71052109      67138955
+BM_sort_census_naics_data<EMPL_N>                -0.0904         -0.0905      70565961      64183984      70561756      64177196
+BM_sort_census_naics_data<EMPLFL_R>              -0.6731         -0.6732      65540868      21422541      65538205      21420167
+BM_sort_census_naics_data<EMPLFL_N>              -0.2456         -0.2457      67268495      50745787      67265028      50741093
+BM_sort_census_naics_data<PAYR_N>                -0.1124         -0.1123      70360956      62453481      70354544      62451657
+BM_sort_census_naics_data<PAYRFL_N>              -0.2472         -0.2472      66996434      50436833      66991338      50432644
+BM_sort_census_naics_data<STATEDSCR>             -0.9027         -0.9027      64228407       6252607      64226432       6252009
+BM_sort_census_naics_data<NAICSDSCR>             -0.4372         -0.4372      73796055      41530415      73793356      41527407
+BM_sort_census_naics_data<entrsizedscr>          -0.3126         -0.3126      69245715      47597146      69238392      47591944
+
