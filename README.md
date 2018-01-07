@@ -106,6 +106,7 @@ Aside from the above clarifications, `timsort()` has an identical contract to `s
 * If an exception is thrown by a swap, move, or comparison operation, some of the elements in the range may be left in a valid, but unspecified state.  That is, `timsort()` provides only the basic exception guarantee (no resources are leaked).
     * In the case where `std::bad_alloc` is thrown when attempting to allocate memory for the merge routine, then all elements in the range are left in a valid state.  None of the elements will be in a "moved-from" state, and no data loss will have occured.  That is, the range will simply be some valid permutation of the range that was initially passed to `timsort`.
 * If the range and values in it are sufficiently small, and no exceptions can be thrown by a swap, move, or comparison then `timsort()` throws no exceptions.
+
 One could transform `timsort()` into a fully-conforming `std::stable_sort()` will the following function:
 ```
 template <class It, class Comp = std::less<>>
