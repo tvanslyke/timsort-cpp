@@ -22,7 +22,7 @@ This implementation of Timsort is written to be as close to Tim Peter's [origina
 
 Overall, the micro-optimizations implemented in this sort result in a sort that is faster than the libstdc++ and libc++ implementations of `std::stable_sort()`. (with some caveats, see below)
 
-All optimizations were made only when benchmarks showed their effectiveness.  Special care is taken to insure that no UB is invoked the C++17 standard (draft n4567) was heavily consulted while writing this implementation.  Note that all measurements were made using g++-7.2 with an Intel(R) Core(TM) i7-6700 CPU @ 3.40GH CPU at the highest optimization level.
+All optimizations were made only when benchmarks showed their effectiveness.  Special care is taken to ensure that no UB is invoked.  The C++17 standard (draft n4567) was heavily consulted while writing this implementation.  Note that all measurements were made using g++-7.2 with an Intel(R) Core(TM) i7-6700 CPU @ 3.40GH CPU at the highest optimization level.
 
 ### Usage
 `tim::timsort()` has a nearly identical interface to `std::stable_sort()`.  The only difference is that `tim::timsort()` may throw a `std::bad_alloc` exception in the event that there is insufficient memory available to complete the merge routine.  `std::stable_sort()` will, in this case, fall back to using an O(Nlog(N)) merge routine that does not allocate.  A `tim::stable_sort()` routine which implements `std::stable_sort()`'s interface fully will very likely be added in the future.
@@ -97,7 +97,7 @@ $ compare_bench.py ./benchmark-stdstable_sort ./timsort
 
 ### As a Replacement for `std::stable_sort()`
 This implementation of Timsort is *nearly* a drop-in replacement for `std::stable_sort()`, except for the following differences:
-* The standard specifies that `std::stable_sort` falls back to an O(Nlog(N)) merge algorithm if insufficient memory is available for merging.  This implementation throws a `std::bad_alloc` exception in this case.  This is a consequence of the fact that the temporary buffer (when the stack cannot be used) is allocated via a `std::vector`.  Attempting to catch this exception and fall back to an inplace merge routine led to measurable pessimizations across all benchmarks.  If allocation fails and `std::bad_alloc` is thrown, the sorted range is valid but may contain a different permutation than it did before the call to `timsort()`.  Note that if `std::bad_alloc` is thrown by any other operation during the sort, some elements in the range may be in a valid, but unspecidied (moved-from) state.  
+* The standard specifies that `std::stable_sort` falls back to an O(Nlog(N)) merge algorithm if insufficient memory is available for merging.  This implementation throws a `std::bad_alloc` exception in this case.  This is a consequence of the fact that the temporary buffer (when the stack cannot be used) is allocated via a `std::vector`.  Attempting to catch this exception and fall back to an inplace merge routine led to measurable pessimizations across all benchmarks.  If allocation fails and `std::bad_alloc` is thrown, the sorted range is valid but may contain a different permutation than it did before the call to `timsort()`.  Note that if `std::bad_alloc` is thrown by any other operation during the sort, some elements in the range may be in a valid, but unspecified (moved-from) state.  
 * The standard specifies that `std::stable_sort()` does at most Nlog(N) comparisons if enough memory can be allocated.  Most existing implementations of `std::stable_sort()` don't appear to follow this strictly, instead opting for O(Nlog(N)) asymptotic complexity (rather than as a hard limit).
 
 
@@ -118,6 +118,7 @@ void my_stable_sort(It begin, It end, Comp comp = std::less<>{})
 	}
 	catch(const std::bad_alloc&)
 	{
+		// the point is that the bad-alloc is recoverable.  
 		std::stable_sort(begin, end, comp);
 	}
 }
