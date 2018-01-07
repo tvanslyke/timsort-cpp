@@ -1,5 +1,5 @@
 # Benchmarks
-All benchmarks were done using Google benchmark.
+All benchmarks were done using Google benchmark.  The files in this directory were produced using the `compare_bench.py` tool from Google benchmark.  See the documentation [here](https://github.com/google/benchmark/blob/master/docs/tools.md) for details.  TLDR: negative changes represent speedups and positive changes represent slowdowns.
 
 Most of the benchmark names are self-explainatory.
 * The `BM_sort_random_strings<X, Y>` benchmarks are sorting random strings with lengths in `[X, Y)`.
