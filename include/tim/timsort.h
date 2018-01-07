@@ -80,25 +80,50 @@ struct TimSort
 	 * Get the next run of already-sorted elements.  If the length of the 
 	 * natural run is less than minrun, force it to size with an insertion sort.
 	 */
-	void push_next_run()
+
+	void push_next_run() 
 	{
-		if(auto run_end = count_run(position, stop, comp); 
-			run_end - position < minrun)
+		// check if the next run is at least two elements long
+		if(const std::size_t remain = stop - position;
+		   COMPILER_LIKELY_(remain > 1))
 		{
-			// insertion sort up to 'position + minrun' elements
-			// if there are enough elements remaining, otherwise
-			// just sort to the end
-			auto limit = stop;
-			if(stop - position > minrun)
-				limit = position + minrun;
-			finish_insertion_sort(position, run_end, limit, comp);
-			position = limit;
+			std::size_t idx = 2;
+			// descending?
+			if(comp(position[1], position[0]))
+			{
+				// see how long it is descending for and then reverse it
+				while(idx < remain and comp(position[idx], position[idx - 1]))
+					++idx;
+				std::reverse(position, position + idx);
+			}
+			// ascending 
+			// even if the run was initially descending, after reversing it the
+			// following elements may form an ascending continuation of the 
+			// now-reversed run.
+			// unconditionally attempt to continue the ascending run
+			while(idx < remain and not comp(position[idx], position[idx - 1])) 
+				++idx;
+			// if needed, force the run to 'minrun' elements, or until all elements 
+			// in the range are exhausted (whichever comes first) with an insertion
+			// sort.  
+			if(idx < remain and idx < minrun)
+			{
+				auto extend_to = std::min(minrun, remain);
+				finish_insertion_sort(position, position + idx, position + extend_to, comp);
+				idx = extend_to;
+			}
+			// advance 'position' by the length of the run we just found
+			position += idx;
 		}
 		else
-			position = run_end;
+		{
+			// only one element
+			position = stop;
+		}
+		// push the run on to the run stack.
 		stack_buffer.push(position - start);
 	}
-
+	
 	/*
 	 * MERGE PATTERN STUFF
 	 */
@@ -508,7 +533,7 @@ struct TimSort
 	/** Comparator used to sort the range. */
 	Comp comp;
 	/** Minimum length of a run */
-	const std::ptrdiff_t minrun;
+	const std::size_t minrun;
 	/** 
 	 * Minimum number of consecutive elements for which one side of the 
 	 * merge must "win" in a row before switching from galloping mode to

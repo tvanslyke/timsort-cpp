@@ -97,8 +97,9 @@ inline void rotate_left(It begin, It end)
 	// benchmarking across a number of different cases shows that this usually wins over 
 	// a call to std::rotate()
 	using value_type = iterator_value_type_t<It>;
-	constexpr std::size_t rotate_right_upper_limit = 3 * sizeof(void*);
-	if constexpr(sizeof(value_type) < rotate_right_upper_limit)
+	constexpr std::size_t use_temporary_upper_limit = 3 * sizeof(void*);
+	constexpr bool use_temporary = sizeof(value_type) < use_temporary_upper_limit;
+	if constexpr(use_temporary)
 	{
 		// for small types, implement using a temporary.
 		if(end - begin > 1) 
@@ -110,7 +111,7 @@ inline void rotate_left(It begin, It end)
 	}
 	else
 	{
-		// for large types, implement as a series of swaps
+		// for large types, implement as a series of adjacent swaps
 		for(end -= (end > begin); end > begin; --end)
 			std::swap(end[-1], *end);
 	}
@@ -160,46 +161,6 @@ void finish_insertion_sort(It begin, It mid, It end, Comp comp)
 			rotate_left(std::upper_bound(begin, mid, *mid, comp), mid + 1);
 	}
 	
-}
-
-/**
- * @brief 	 Count consecutive number of sorted elements, reversing the sequence 
- * 	  	 if it is descending.
- * @param begin  Iterator to the first element in the range.
- * @param end    Past-the-end iterator.
- * @param comp   Comparator to use.
- */
-template <class It, class Comp>
-It count_run(It begin, It end, Comp comp)
-{
-	if(COMPILER_UNLIKELY_(end - begin < 2))
-	{
-		begin = end;
-	}
-	else if(comp(begin[1], *begin))
-	{
-		auto save = begin;
-		for(begin += 2; begin < end; ++begin)
-		{
-			if(not comp(*begin, begin[-1]))
-				break;
-		}
-		std::reverse(save, begin);
-		// try to extend the run a little further if possible.
-		// benchmarking showed that this pays more than it hurts, 
-		// and it doesn't hurt much.
-		while(begin < end and not comp(*begin, begin[-1]))
-			++begin;
-	}
-	else
-	{
-		for(begin += 2; begin < end; ++begin)
-		{
-			if(comp(*begin, begin[-1]))
-				break;
-		}
-	}
-	return begin;
 }
 
 } /* namespace internal */
