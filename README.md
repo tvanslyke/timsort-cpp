@@ -25,7 +25,7 @@ Overall, the micro-optimizations implemented in this sort result in a sort that 
 All optimizations were made only when benchmarks showed their effectiveness.  Special care is taken to insure that no UB is invoked the C++17 standard (draft n4567) was heavily consulted while writing this implementation.  Note that all measurements were made using g++-7.2 with an Intel(R) Core(TM) i7-6700 CPU @ 3.40GH CPU at the highest optimization level.
 
 ### Usage
-`tim::timsort()` has a nearly identical interface to `std::stable_sort()`.  The only difference is that `tim::timsort()` may throw a `std::bad_alloc` exception in the event that there is insufficient memory available to complete the merge routine.  `std::stable_sort()` will, in this case, fall back to using an O(Nlog(N)) merge routine that does not allocate.
+`tim::timsort()` has a nearly identical interface to `std::stable_sort()`.  The only difference is that `tim::timsort()` may throw a `std::bad_alloc` exception in the event that there is insufficient memory available to complete the merge routine.  `std::stable_sort()` will, in this case, fall back to using an O(Nlog(N)) merge routine that does not allocate.  A `tim::stable_sort()` routine which implements `std::stable_sort()`'s interface fully will very likely be added in the future.
 
 example.cpp:
 ```
