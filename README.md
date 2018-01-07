@@ -3,7 +3,7 @@
 
 An optimized-for-C++ implementation of Tim Peters' Timsort sorting algorithm written in C++17.
 
-[Timsort](https://en.wikipedia.org/wiki/Timsort) is a practical, adaptive, and stable sorting algorithm originally developed for CPython by Tim Peters in 2002.  Timsort is blazingly fast for data which is already partially sorted and is performs well with datatypes where comparisons are relatively expexpensive to compute.  
+[Timsort](https://en.wikipedia.org/wiki/Timsort) is a practical, adaptive, and stable sorting algorithm originally developed for CPython by Tim Peters in 2002.  Timsort is blazingly fast for data which is already partially sorted and is performs well with datatypes where comparisons are relatively expensive to compute.  
 
 This implementation of Timsort is written to be as close to Tim Peter's [original implementation](https://github.com/python/cpython/blob/master/Objects/listsort.txt) as possible, but with the following changes and considerations:
 
