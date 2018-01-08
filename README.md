@@ -28,7 +28,7 @@ All optimizations were made only when benchmarks showed their effectiveness.  Sp
 `tim::timsort()` has a nearly identical interface to `std::stable_sort()`.  The only difference is that `tim::timsort()` may throw a `std::bad_alloc` exception in the event that there is insufficient memory available to complete the merge routine.  `std::stable_sort()` will, in this case, fall back to using an O(Nlog(N)) merge routine that does not allocate.  A `tim::stable_sort()` routine which implements `std::stable_sort()`'s interface fully will very likely be added in the future.
 
 example.cpp:
-```
+```cpp
 #include <iostream>
 #include <string>
 #include <vector>
@@ -52,7 +52,7 @@ int main()
 }
 ```
 Compile and run
-```
+```sh
 $ g++ -std=c++17 example.cpp -o example
 $ ./example
 ! Timsort awesome darn is pretty 
@@ -67,19 +67,19 @@ The test suite uses Boost.test and the benchmarks use Google benchmark.  Neither
 
 ### Installing
 Clone the repo locally:
-```
+```sh
 git clone https://github.com/tvanslyke/timsort-cpp.git
 cd timsort-cpp
 ```
 Run cmake and install
-```
+```sh
 cmake <optional options> ./
 make install
 ```
 
 ### Running the tests
 After configuring the build with cmake the tests can be run as follows:
-```
+```sh
 make test-timsort
 ./test-timsort
 ```
@@ -87,7 +87,7 @@ make test-timsort
 ### Benchmarks
 Benchmarks can be run be run for `std::sort`, `std::stable_sort` and for `timsort` as follows (requires Google benchmark to be installed).
 
-```
+```sh
 $ make benchmark-stdsort benchmark-stdstable_sort benchmark-timsort
 $ # you can run the benchmarks individually
 $ ./benchmark-stdsort
@@ -108,7 +108,7 @@ Aside from the above clarifications, `timsort()` has an identical contract to `s
 * If the range and values in it are sufficiently small, and no exceptions can be thrown by a swap, move, or comparison then `timsort()` throws no exceptions.
 
 One could transform `timsort()` into a fully-conforming `std::stable_sort()` will the following function:
-```
+```cpp
 template <class It, class Comp = std::less<>>
 void my_stable_sort(It begin, It end, Comp comp = std::less<>{})
 {
