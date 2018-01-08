@@ -1,5 +1,4 @@
 # Benchmarks
-PLEASE NOTE: THE BENCHMARKS FOR LIBC++ ARE INCORRECT, THEY WILL BE FIXED SHORTLY!
 
 All benchmarks were done using Google benchmark.  The files in this directory were produced using the `compare_bench.py` tool from Google benchmark.  See the documentation [here](https://github.com/google/benchmark/blob/master/docs/tools.md) for details.  TLDR: negative changes represent speedups and positive changes represent slowdowns.
 

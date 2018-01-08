@@ -20,7 +20,7 @@ This implementation of Timsort is written to be as close to Tim Peter's [origina
     * As mentioned above, the amount of extra stack space allocated to be used as a merge buffer depends on the size of the type.  This helps minimizing heap usage for small types and keeps us from over-allocating on the stack for large types.
 * One other optimization is the usage of compiler intrinsics when possible.  This can be switched off by defining `TIMSORT_NO_USE_COMPILER_INTRINSICS`.  
 
-Overall, the micro-optimizations implemented in this sort result in a sort that is faster than the libstdc++ and libc++ implementations of `std::stable_sort()`. (with some caveats, see below)
+Overall, the micro-optimizations implemented in this sort result in a sort that is faster than the libstdc++ and (only sometimes) libc++ implementations of `std::stable_sort()`. (with some caveats, see below)
 
 All optimizations were made only when benchmarks showed their effectiveness.  Special care is taken to ensure that no UB is invoked.  The C++17 standard (draft n4567) was heavily consulted while writing this implementation.  Note that all measurements were made using g++-7.2 with an Intel(R) Core(TM) i7-6700 CPU @ 3.40GH CPU at the highest optimization level.
 
