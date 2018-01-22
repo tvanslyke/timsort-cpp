@@ -1,5 +1,5 @@
-#ifndef COMPILER_H
-#define COMPILER_H
+#ifndef TIMSORT_COMPILER_H
+#define TIMSORT_COMPILER_H
 
 # ifndef TIMSORT_NO_USE_COMPILER_INTRINSICS
 
@@ -49,4 +49,4 @@
 
 # endif /* TIMSORT_NO_USE_COMPILER_INTRINSICS */
 
-#endif /* COMPILER_H */
+#endif /* TIMSORT_COMPILER_H */

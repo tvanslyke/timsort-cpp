@@ -1,5 +1,5 @@
-#ifndef CONTIGUOUS_ITERATOR_H
-#define CONTIGUOUS_ITERATOR_H
+#ifndef TIMSORT_CONTIGUOUS_ITERATOR_H
+#define TIMSORT_CONTIGUOUS_ITERATOR_H
 
 #include <iterator>
 #include <type_traits>
@@ -130,4 +130,4 @@ inline constexpr const bool is_reverse_contiguous_iterator_v = is_reverse_contig
 } /* namespace tim */
 
 
-#endif /* CONTIGUOUS_ITERATOR_H */
+#endif /* TIMSORT_CONTIGUOUS_ITERATOR_H */

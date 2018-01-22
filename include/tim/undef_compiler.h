@@ -1,5 +1,5 @@
-#ifndef COMPILER_H
-#define COMPILER_H
+#ifndef TIMSORT_UNDEF_COMPILER_H
+#define TIMSORT_UNDEF_COMPILER_H
 
 
 #ifdef 	COMPILER_LIKELY_ 
@@ -19,4 +19,4 @@
 #endif
 
 
-#endif /* COMPILER_H */
+#endif /* TIMSORT_UNDEF_COMPILER_H */

@@ -50,7 +50,7 @@ struct TimSort
 	 * to resolve invariants on the size of the runs in the stack along 
 	 * the way.
 	 */
-	inline void fill_run_stack()
+	void fill_run_stack()
 	{
 		// push the first two runs on to the run stack, unless there's
 		// only one run.
@@ -236,7 +236,7 @@ struct TimSort
 	 *     std::is_sorted(begin, mid, this->comp)
 	 *     std::is_sorted(mid, end, this->comp)
 	 */
-	inline void merge_runs(It begin, It mid, It end) 
+	void merge_runs(It begin, It mid, It end) 
 	{
 		// We're going to need to copy the smaller of these ranges 
 		// into a temporary buffer (which may end up having to be on 
@@ -290,7 +290,7 @@ struct TimSort
 	 *     std::is_sorted(mid, end, cmp)
 	 */
 	template <class Iter, class Cmp>
-	inline void do_merge(Iter begin, Iter mid, Iter end, Cmp cmp)
+	void do_merge(Iter begin, Iter mid, Iter end, Cmp cmp)
 	{
 		// check to see if we can use the run stack as a temporary buffer
 		if(stack_buffer.can_acquire_merge_buffer(begin, mid)) 
@@ -548,7 +548,7 @@ struct TimSort
 
 
 template <class It, class Comp>
-static inline void _timsort(It begin, It end, Comp comp)
+static void _timsort(It begin, It end, Comp comp)
 {
 	using value_type = iterator_value_type_t<It>;
 	std::size_t len = end - begin;
@@ -562,14 +562,14 @@ static inline void _timsort(It begin, It end, Comp comp)
 
 
 template <class It, class Comp>
-inline void timsort(It begin, It end, Comp comp)
+void timsort(It begin, It end, Comp comp)
 {
 	internal::_timsort(begin, end, comp);
 }
 
 
 template <class It>
-inline void timsort(It begin, It end)
+void timsort(It begin, It end)
 {
 	timsort(begin, end, tim::internal::DefaultComparator{}); 
 }

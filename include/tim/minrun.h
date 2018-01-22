@@ -1,5 +1,5 @@
-#ifndef MINRUN_H
-#define MINRUN_H
+#ifndef TIMSORT_MINRUN_H
+#define TIMSORT_MINRUN_H
 
 
 namespace tim {
@@ -53,4 +53,4 @@ static constexpr std::size_t compute_minrun(std::size_t n) noexcept
 } /* namespace tim */
 
 
-#endif /* MINRUN_H */
+#endif /* TIMSORT_MINRUN_H */

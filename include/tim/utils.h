@@ -1,3 +1,5 @@
+#ifndef UTILS_H
+#define UTILS_H
 #include <algorithm>
 #include "compiler.h"
 #include "memcpy_algos.h"
@@ -166,3 +168,5 @@ void finish_insertion_sort(It begin, It mid, It end, Comp comp)
 } /* namespace internal */
 } /* namespace tim */
 
+
+#endif /* UTILS_H */

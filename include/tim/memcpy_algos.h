@@ -1,5 +1,5 @@
-#ifndef MEMCPY_ALGOS_H
-#define MEMCPY_ALGOS_H
+#ifndef TIMSORT_MEMCPY_ALGOS_H
+#define TIMSORT_MEMCPY_ALGOS_H
 #include "contiguous_iterator.h"
 #include "iter.h"
 #include <algorithm>
@@ -78,4 +78,4 @@ auto move_or_memcpy(SrcIt begin, SrcIt end, DestIt dest)
 } /* namespace tim */
 
 
-#endif /* MEMCPY_ALGOS_H */
+#endif /* TIMSORT_MEMCPY_ALGOS_H */
